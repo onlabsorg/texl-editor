@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>texl-editor demo</title>
+        <style>
+            body {
+                font-family: system-ui, sans-serif;
+                max-width: 48rem;
+                margin: 2rem auto;
+                padding: 0 1rem;
+                line-height: 1.5;
+            }
+            pre {
+                background: #f4f4f4;
+                padding: 0.75rem;
+                overflow: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <texl-editor id="editor"></texl-editor>
+        <h2>Source</h2>
+        <pre id="source"></pre>
+        <script type="module">
+            import "./src/index.js";
+            import sample from "./examples/sample.texl?raw";
+
+            const editor = document.getElementById("editor");
+            const source = document.getElementById("source");
+            editor.value = sample;
+            source.textContent = editor.value;
+            editor.addEventListener("change", () => (source.textContent = editor.value));
+            editor.focus();
+        </script>
+    </body>
+</html>
