@@ -32,7 +32,7 @@ that will embed it is private.
 Plain JavaScript (ES modules, JSDoc types, no TypeScript, no build step for
 the source) with Lit 3 web components. Texl runs in the browser as
 WebAssembly (`@onlabsorg/texl`). Markdown is rendered with `marked` and
-sanitised with DOMPurify.
+sanitised with DOMPurify. Text is edited with CodeMirror 6 (`@codemirror/*`).
 
 ```bash
 npm install
@@ -52,13 +52,14 @@ is managed by nvm (LTS as default); non-interactive shells must run
   `<texl-editor>`, re-exports the public API.
 - `src/texl-editor.js` — `TexlEditor`: holds the cells, keyboard navigation,
   edit mode, and rendering (one Texl context per pass, cells rendered in
-  order). Public surface: `value` (document text), `base-url`, `change`
-  event, `rendered` (promise of the current rendering pass).
+  order). Public surface: `value` (document text), `base-url`, `rows`
+  (lines on the sheet, default 100), `change` event, `rendered` (promise of
+  the current rendering pass).
 - `src/texl-cell.js` — `TexlCell`, the base class of all cells: modes,
   layout, and the commit protocol (`cell-change` with `{texl}`, then
-  `cell-exit`). Subclasses override `fromTexl`, `toTexl`, `renderEditor`,
-  `renderView`.
-- `src/cells/` — built-in cell types (`text`, `formula`).
+  `cell-exit`). Subclasses override `fromTexl`, `toTexl`, `renderEditor`;
+  the base `renderView` (output as sanitised Markdown) rarely needs it.
+- `src/cells/` — built-in cell types (`text`, `expression`).
 - `src/registry.js` — `registerCell(CellClass)` maps a cell type to its
   custom element `texl-cell-<type>`; unknown types fall back to `text`.
 - `src/document.js` — parse a file into cells and serialise them back

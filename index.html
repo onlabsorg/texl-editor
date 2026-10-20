@@ -6,23 +6,149 @@
         <title>texl-editor demo</title>
         <style>
             body {
-                font-family: system-ui, sans-serif;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
                 max-width: 48rem;
-                margin: 2rem auto;
-                padding: 0 1rem;
+                margin: 0 auto;
+                padding: 2rem 1rem;
+                font-family: system-ui, sans-serif;
                 line-height: 1.5;
+                background: #eef0f3;
+            }
+            /* The editor and the source fill the page height and scroll inside,
+               raised above the page like a sheet of paper */
+            texl-editor,
+            pre {
+                flex: 1;
+                min-height: 0;
+                border-radius: 2px;
+                box-shadow:
+                    0 1px 3px rgb(0 0 0 / 0.08),
+                    0 4px 16px rgb(0 0 0 / 0.08);
+            }
+            #toggle {
+                position: fixed;
+                top: 0.75rem;
+                right: 0.75rem;
+                display: flex;
+                padding: 0.4rem;
+                border: 1px solid #ccc;
+                border-radius: 0.375rem;
+                background: #fff;
+                color: #333;
+                cursor: pointer;
+            }
+            #toggle:hover {
+                background: #f4f4f4;
+            }
+            #toggle svg {
+                width: 1.25rem;
+                height: 1.25rem;
+            }
+            #toggle svg[hidden] {
+                display: none;
+            }
+            texl-editor[hidden] {
+                display: none;
             }
             pre {
-                background: #f4f4f4;
+                margin: 0;
+                background: #fff;
                 padding: 0.75rem;
                 overflow: auto;
+            }
+            pre[hidden] {
+                display: none;
+            }
+            /* The key bindings, in the gray margin left of the sheet; hidden
+               when the margin is too narrow to hold them */
+            #keys {
+                position: fixed;
+                top: 2rem;
+                left: 1rem;
+                width: 15rem;
+                font-size: 0.8125rem;
+                color: #555;
+            }
+            @media (max-width: 80rem) {
+                #keys {
+                    display: none;
+                }
+            }
+            #keys h2 {
+                margin: 1rem 0 0.25rem;
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #888;
+            }
+            #keys h2:first-child {
+                margin-top: 0;
+            }
+            #keys dl {
+                display: grid;
+                grid-template-columns: 9rem 1fr;
+                align-items: baseline;
+                gap: 0.25rem 0.75rem;
+                margin: 0;
+            }
+            #keys dt {
+                line-height: 1.6;
+            }
+            #keys dd {
+                margin: 0;
+            }
+            kbd {
+                padding: 0 0.3rem;
+                border: 1px solid #ccc;
+                border-bottom-width: 2px;
+                border-radius: 0.25rem;
+                background: #fff;
+                font: inherit;
+                font-size: 0.75rem;
             }
         </style>
     </head>
     <body>
+        <button id="toggle" type="button" title="switch to source" aria-label="switch to source">
+            <svg id="icon-source" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+            </svg>
+            <svg id="icon-editor" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+        </button>
+        <aside id="keys" aria-label="key bindings">
+            <h2>Cells</h2>
+            <dl>
+                <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Select</dd>
+                <dt><kbd>Shift</kbd>+<kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Select more</dd>
+                <dt><kbd data-alt>Alt</kbd>+<kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move</dd>
+                <dt><kbd>Enter</kbd> or <kbd>F2</kbd></dt><dd>Edit</dd>
+                <dt><kbd data-alt>Alt</kbd>+<kbd>Enter</kbd> or <kbd>Ins</kbd></dt><dd>Insert below</dd>
+                <dt><kbd data-alt>Alt</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd></dt><dd>Insert above</dd>
+                <dt><kbd>Del</kbd> or <kbd>⌫</kbd></dt><dd>Delete</dd>
+                <dt><kbd data-mod>Ctrl</kbd>+<kbd>C</kbd></dt><dd>Copy</dd>
+                <dt><kbd data-mod>Ctrl</kbd>+<kbd>X</kbd></dt><dd>Cut</dd>
+                <dt><kbd data-mod>Ctrl</kbd>+<kbd>V</kbd></dt><dd>Paste over</dd>
+                <dt><kbd data-mod>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
+                <dt><kbd data-mod>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd data-mod>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>Redo</dd>
+            </dl>
+            <h2>While editing</h2>
+            <dl>
+                <dt><kbd data-mod>Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>Save</dd>
+                <dt><kbd>Esc</kbd></dt><dd>Discard</dd>
+            </dl>
+        </aside>
         <texl-editor id="editor"></texl-editor>
-        <h2>Source</h2>
-        <pre id="source"></pre>
+        <pre id="source" hidden></pre>
         <script type="module">
             import "./src/index.js";
             import sample from "./examples/sample.texl?raw";
@@ -33,6 +159,26 @@
             source.textContent = editor.value;
             editor.addEventListener("change", () => (source.textContent = editor.value));
             editor.focus();
+
+            // Name the modifier keys as macOS does
+            if (/Mac|iPhone|iPad/.test(navigator.platform)) {
+                for (const key of document.querySelectorAll("kbd[data-mod]")) key.textContent = "⌘";
+                for (const key of document.querySelectorAll("kbd[data-alt]")) key.textContent = "⌥";
+            }
+
+            const toggle = document.getElementById("toggle");
+            toggle.addEventListener("click", () => {
+                const showSource = source.hidden;
+                source.hidden = !showSource;
+                editor.hidden = showSource;
+                const label = showSource ? "switch to editor" : "switch to source";
+                toggle.title = label;
+                toggle.setAttribute("aria-label", label);
+                // SVG elements have no `hidden` property: set the attribute
+                document.getElementById("icon-source").toggleAttribute("hidden", showSource);
+                document.getElementById("icon-editor").toggleAttribute("hidden", !showSource);
+                if (!showSource) editor.focus();
+            });
         </script>
     </body>
 </html>

@@ -15,7 +15,7 @@ const MARKER = /^<!--%(.*?)%-->[ \t]*$/;
 /**
  * A cell of a document.
  * @typedef {object} CellData
- * @property {string} type - The cell type, e.g. "text" or "formula".
+ * @property {string} type - The cell type, e.g. "text" or "expression".
  * @property {string} name - The cell name; may be empty.
  * @property {string} texl - The Texl source of the cell body.
  * @property {boolean} [marker] - False for the leading cell without marker.
@@ -81,7 +81,7 @@ export function serializeDocument(cells) {
     return cells
         .map((cell, i) => {
             let texl = cell.texl;
-            if (i < cells.length - 1 && !texl.endsWith("\n")) texl += "\n";
+            if (texl && i < cells.length - 1 && !texl.endsWith("\n")) texl += "\n";
             return cell.marker === false ? texl : formatMarker(cell) + "\n" + texl;
         })
         .join("");

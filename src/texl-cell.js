@@ -1,4 +1,7 @@
 import { LitElement, html, css } from "lit";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 /**
  * Base class of all cells.
@@ -13,7 +16,8 @@ import { LitElement, html, css } from "lit";
  * committed. Subclasses override:
  * - `fromTexl(texl)`: reads the cell's input from its Texl source;
  * - `toTexl()`: produces the Texl source from the current input;
- * - `renderEditor()` and `renderView()`: the two modes.
+ * - `renderEditor()`: the editing widget (the base only shows a notice);
+ * - `renderView()`, rarely: the base shows `output` as sanitised Markdown.
  *
  * Reactive properties are declared in `static properties` and initialised in
  * the constructor (not as class fields, which would shadow Lit's accessors).
@@ -30,18 +34,39 @@ export class TexlCell extends LitElement {
         selected: { type: Boolean, reflect: true },
     };
 
+    // Lined paper: every cell is at least one line high and ruled below.
     static styles = css`
         :host {
             display: block;
+            box-sizing: border-box;
+            min-height: var(--texl-line-height, 2rem);
             border-left: 3px solid transparent;
+            border-bottom: 1px solid var(--texl-line, #e4e6ea);
             padding: 0.25rem 0.75rem;
+            line-height: 1.5rem;
         }
+        /* Selected: a light wash and a faint rounded ring */
         :host([selected]) {
-            border-left-color: var(--texl-accent, #2563eb);
-            background: var(--texl-selected-bg, #f5f8ff);
+            border-radius: 4px;
+            background: var(--texl-selected-bg, rgb(37 99 235 / 0.05));
+            box-shadow: inset 0 0 0 1px var(--texl-selected-ring, rgb(37 99 235 / 0.35));
         }
+        /* Editing: the source takes the place of the output on the line, on a
+           faint gray tint with the accent bar */
         :host([mode="edit"]) {
-            background: var(--texl-edit-bg, #fffdf5);
+            border-radius: 0;
+            border-left-color: var(--texl-accent, #2563eb);
+            background: var(--texl-edit-bg, #f8f9fb);
+            box-shadow: none;
+        }
+        .view > :first-child {
+            margin-top: 0;
+        }
+        .view > :last-child {
+            margin-bottom: 0;
+        }
+        .no-editor {
+            color: #999;
         }
     `;
 
@@ -99,14 +124,14 @@ export class TexlCell extends LitElement {
         return this.mode === "edit" ? this.renderEditor() : this.renderView();
     }
 
+    /** The editing widget. Subclasses override it. */
     renderEditor() {
-        return html`<textarea
-            .value=${this.input ?? ""}
-            @input=${(e) => (this.input = e.target.value)}
-        ></textarea>`;
+        return html`<p class="no-editor">No editor is defined for this cell type.</p>`;
     }
 
+    /** Shows `output` as Markdown, sanitised: documents are untrusted. */
     renderView() {
-        return html`<pre>${this.output}</pre>`;
+        const markup = DOMPurify.sanitize(marked.parse(this.output));
+        return html`<div class="view">${unsafeHTML(markup)}</div>`;
     }
 }
