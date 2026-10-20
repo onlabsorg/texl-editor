@@ -18,7 +18,12 @@ const cellKeymap = defaultKeymap.filter((binding) => !EDITOR_KEYS.has(binding.ke
  *
  * The CodeMirror view exists only in edit mode: it is created after the
  * cell enters edit mode and destroyed when it leaves. It keeps `input` up to
- * date, so subclasses only convert between `input` and Texl source.
+ * date, so subclasses only convert between `input` and Texl source. The
+ * cursor starts at the end of the text, as with F2 in Excel.
+ *
+ * The line break that ends most cell bodies belongs to the file format (it
+ * separates the cell from the next marker): it is left out of `input` while
+ * editing and added back to the Texl source.
  */
 export class TextCell extends TexlCell {
     static type = "text";
@@ -26,18 +31,27 @@ export class TextCell extends TexlCell {
     static styles = [
         TexlCell.styles,
         css`
-            .editor {
-                border: 1px solid var(--texl-border, #ccc);
-                background: var(--texl-editor-bg, #fff);
-            }
+            /* No box: the source sits on the line where the output was */
             .editor .cm-editor {
                 min-height: 1.5rem;
             }
             .editor .cm-editor.cm-focused {
-                outline: 1px solid var(--texl-accent, #2563eb);
+                outline: none;
             }
             .editor .cm-scroller {
                 font-family: var(--texl-mono, ui-monospace, monospace);
+                line-height: inherit;
+            }
+            /* Room for the cursor before the first character, which would
+               otherwise be clipped; the margin keeps the text in place */
+            .editor {
+                margin-left: -2px;
+            }
+            .editor .cm-content {
+                padding: 0 0 0 2px;
+            }
+            .editor .cm-line {
+                padding: 0;
             }
         `,
     ];
@@ -46,6 +60,17 @@ export class TextCell extends TexlCell {
         super();
         /** @type {EditorView | null} */
         this._view = null;
+        /** The line break after the edited text, kept out of `input`. */
+        this._lineBreak = "";
+    }
+
+    fromTexl(texl) {
+        this._lineBreak = /\r?\n$/.exec(texl)?.[0] ?? "";
+        this.input = texl.slice(0, texl.length - this._lineBreak.length);
+    }
+
+    toTexl() {
+        return (this.input ?? "") + (this._lineBreak ?? "");
     }
 
     /** CodeMirror extensions of the editor. Subclasses may extend them. */
@@ -70,9 +95,11 @@ export class TextCell extends TexlCell {
 
     updated(changed) {
         if (this.mode === "edit" && !this._view) {
+            const doc = this.input ?? "";
             this._view = new EditorView({
                 state: EditorState.create({
-                    doc: this.input ?? "",
+                    doc,
+                    selection: { anchor: doc.length },
                     extensions: this.editorExtensions(),
                 }),
                 parent: this.renderRoot.querySelector(".editor"),

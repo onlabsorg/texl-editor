@@ -45,12 +45,19 @@ export class TexlCell extends LitElement {
             padding: 0.25rem 0.75rem;
             line-height: 1.5rem;
         }
+        /* Selected: a light wash and a faint rounded ring */
         :host([selected]) {
-            border-left-color: var(--texl-accent, #2563eb);
-            background: var(--texl-selected-bg, #f5f8ff);
+            border-radius: 4px;
+            background: var(--texl-selected-bg, rgb(37 99 235 / 0.05));
+            box-shadow: inset 0 0 0 1px var(--texl-selected-ring, rgb(37 99 235 / 0.35));
         }
+        /* Editing: the source takes the place of the output on the line, on a
+           faint gray tint with the accent bar */
         :host([mode="edit"]) {
-            background: var(--texl-edit-bg, #fffdf5);
+            border-radius: 0;
+            border-left-color: var(--texl-accent, #2563eb);
+            background: var(--texl-edit-bg, #f8f9fb);
+            box-shadow: none;
         }
         .view > :first-child {
             margin-top: 0;

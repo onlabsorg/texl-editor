@@ -114,9 +114,10 @@ components.
   "no editor" notice). `renderView()` rarely needs overriding: the base
   renders `output` as Markdown, sanitised with DOMPurify.
 - `TextCell` provides the text editor, a CodeMirror 6 view that exists only
-  in edit mode and keeps `input` up to date; `ExpressionCell` extends it and only
-  wraps its input in `<% %>` (`toTexl`) and strips the tag again
-  (`fromTexl`).
+  in edit mode and keeps `input` up to date (without the line break that
+  ends the cell body, which belongs to the file format and is added back);
+  `ExpressionCell` extends it and only wraps its input in `<% %>` (`toTexl`)
+  and strips the tag again (`fromTexl`).
 - Registry (`src/registry.js`): `registerCell(CellClass)` maps the type in the
   marker to a custom element (`texl-cell-<type>`). This is the extension
   point for developers' own cells.
@@ -136,7 +137,33 @@ components.
   cell (a new line in text). Cells must leave these keys to the editor.
 - Typing on a selected cell does not start editing it, unlike Excel, until
   it is clear how that would work for other cell types (e.g. tables).
-- **(open)** Keys to add, delete, move and change the type of cells.
+- Cell keys, outside edit mode (Mod is Ctrl, or Cmd on macOS). They are
+  chosen to exist on every keyboard (Mac and laptops have no Insert key,
+  Mac's ⌫ is Backspace) and not to clash with the browser or the OS:
+  - Shift+↑/↓ (or Shift+click) selects several cells, from the anchor to
+    the active line. The actions below work on all selected cells; Enter
+    edits only the active one.
+  - Alt+↑/↓ moves the selected cells one line up or down, as in VS Code.
+    A cell moved below the document leaves empty cells behind it.
+  - Alt+Enter inserts an empty cell below the selection, Alt+Shift+Enter
+    above it (Shift reverses the direction, as Shift+Tab). Insert also
+    inserts below, for keyboards that have it.
+  - Delete or Backspace deletes the selected cells; Mod+Z brings them back.
+  - Mod+C/X/V copy, cut and paste the selected cells: the clipboard holds
+    their marker lines and source, so pasted cells keep their type and
+    name, and other text pastes as a `text` cell. Paste replaces the
+    selected cells, as in Excel, and selects the pasted ones. The editor
+    handles the browser's clipboard events rather than the keys, so the old
+    Ctrl+Insert, Shift+Insert and Shift+Delete copy, paste and cut too, and
+    text selected with the mouse is copied as usual.
+  - Mod+Z undoes the last change to the cells (inserts, deletes, moves,
+    pastes, committed edits) and restores the selection, Mod+Shift+Z or
+    Mod+Y redoes it; setting `value` clears the history. While editing,
+    these keys undo inside the cell.
+  - Only the first cell may go without marker: a cell without one that is
+    no longer first gets one. Empty text cells without name at the end of
+    the document are dropped, as they look like the empty lines below it.
+- **(open)** How to change a cell's type (key, menu or both).
 - **(open)** Expression cells: does the cell name bind a variable
   (`M = q * L ^ 2 / 8`), and is the result shown as "M = 56.25" (Mathcad
   style)? Units?
