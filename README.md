@@ -4,10 +4,10 @@ A web editor for [Texl](https://github.com/onlabsorg/texl) documents, made for
 people who work in Word and Excel.
 
 A document is a vertical stack of **cells**. You move between cells and press
-Enter to edit one, as in a spreadsheet. Each cell has a type: Markdown text, a
-formula, and soon tables and charts. A cell turns what you type into plain
-Texl, and shows the rendered result live. Cells can use the values and
-functions defined by the cells above them.
+Enter to edit one, as in a spreadsheet. Each cell has a type: Markdown text, an
+expression (like an Excel formula), and soon tables and charts. A cell turns
+what you type into plain Texl, and shows the rendered result live. Cells can
+use the values and functions defined by the cells above them.
 
 The whole editor is a web component, `<texl-editor>`, so it can be embedded
 in any web page or app. Each cell type is a web component too, and you can
@@ -31,12 +31,13 @@ npm run dev        # demo page at http://localhost:5173
     import "@onlabsorg/texl-editor";
 
     const editor = document.getElementById("editor");
-    editor.value = "<!--% intro | text %-->\n# Hello\n<!--% x | formula %-->\n<% 6 * 7 %>\n";
+    editor.value = "<!--% intro | text %-->\n# Hello\n<!--% x | expression %-->\n<% 6 * 7 %>\n";
     editor.addEventListener("change", () => console.log(editor.value));
 </script>
 ```
 
-Keyboard: ↑/↓ select a cell, Enter edits it, Escape leaves edit mode.
+Keyboard: ↑/↓ select a cell, Enter edits it. In edit mode, Ctrl+Enter
+(Cmd+Enter on macOS) saves and leaves, Escape discards the changes.
 
 ## The file format
 
@@ -47,7 +48,7 @@ A document is a single Texl text file. Each cell starts with a marker line,
 <!--% intro | text %-->
 # Beam check
 <% L = 6, q = 12.5 %>
-<!--% M | formula %-->
+<!--% M | expression %-->
 <% q * L ^ 2 / 8 %>
 ```
 

@@ -1,4 +1,7 @@
 import { LitElement, html, css } from "lit";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 /**
  * Base class of all cells.
@@ -13,7 +16,8 @@ import { LitElement, html, css } from "lit";
  * committed. Subclasses override:
  * - `fromTexl(texl)`: reads the cell's input from its Texl source;
  * - `toTexl()`: produces the Texl source from the current input;
- * - `renderEditor()` and `renderView()`: the two modes.
+ * - `renderEditor()`: the editing widget (the base only shows a notice);
+ * - `renderView()`, rarely: the base shows `output` as sanitised Markdown.
  *
  * Reactive properties are declared in `static properties` and initialised in
  * the constructor (not as class fields, which would shadow Lit's accessors).
@@ -42,6 +46,10 @@ export class TexlCell extends LitElement {
         }
         :host([mode="edit"]) {
             background: var(--texl-edit-bg, #fffdf5);
+        }
+        .empty,
+        .no-editor {
+            color: #999;
         }
     `;
 
@@ -99,14 +107,15 @@ export class TexlCell extends LitElement {
         return this.mode === "edit" ? this.renderEditor() : this.renderView();
     }
 
+    /** The editing widget. Subclasses override it. */
     renderEditor() {
-        return html`<textarea
-            .value=${this.input ?? ""}
-            @input=${(e) => (this.input = e.target.value)}
-        ></textarea>`;
+        return html`<p class="no-editor">No editor is defined for this cell type.</p>`;
     }
 
+    /** Shows `output` as Markdown, sanitised: documents are untrusted. */
     renderView() {
-        return html`<pre>${this.output}</pre>`;
+        if (!this.output.trim()) return html`<p class="empty">Empty cell</p>`;
+        const markup = DOMPurify.sanitize(marked.parse(this.output));
+        return html`${unsafeHTML(markup)}`;
     }
 }

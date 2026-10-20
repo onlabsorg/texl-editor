@@ -36,7 +36,7 @@ the editor.
 | Type        | Edit mode                                    | Status        |
 |-------------|----------------------------------------------|---------------|
 | `text`      | Markdown Texl template, inline `<% %>` by hand | Boilerplate |
-| `formula`   | A Swan expression without `<% %>`, as an Excel formula after `=` | Boilerplate |
+| `expression` | A Swan expression without `<% %>`, as an Excel formula; uses the `text` editor | Boilerplate |
 | `table`     | A grid where each cell is edited on its own: a spreadsheet inside the document | Planned (MVP) |
 | `chart`     | Shows a chart; edits as a table of values    | Planned       |
 | `figure`    | A parametric figure                          | Idea          |
@@ -55,7 +55,7 @@ line, an HTML comment that the editor recognises:
 <!--% intro | text %-->
 # Beam check
 <% L = 6, q = 12.5 %>
-<!--% M | formula %-->
+<!--% M | expression %-->
 <% q * L ^ 2 / 8 %>
 ```
 
@@ -94,7 +94,7 @@ components.
 ```
 <texl-editor>                     the app: document, navigation, rendering
   ├─ <texl-cell-text>             one element per cell, by type
-  ├─ <texl-cell-formula>
+  ├─ <texl-cell-expression>
   └─ <texl-cell-…>                custom cells from third parties
         all extend TexlCell       base: modes, layout, commit protocol
 ```
@@ -102,7 +102,13 @@ components.
 - `TexlCell` (`src/texl-cell.js`): base class. Switches between edit and
   render mode, provides the common layout, and reports a committed edit with
   a `cell-change` event carrying the new Texl source. Subclasses implement
-  `fromTexl()`, `toTexl()`, `renderEditor()` and `renderView()`.
+  `fromTexl()`, `toTexl()` and `renderEditor()` (the base only shows a
+  "no editor" notice). `renderView()` rarely needs overriding: the base
+  renders `output` as Markdown, sanitised with DOMPurify.
+- `TextCell` provides the text editor, a CodeMirror 6 view that exists only
+  in edit mode and keeps `input` up to date; `ExpressionCell` extends it and only
+  wraps its input in `<% %>` (`toTexl`) and strips the tag again
+  (`fromTexl`).
 - Registry (`src/registry.js`): `registerCell(CellClass)` maps the type in the
   marker to a custom element (`texl-cell-<type>`). This is the extension
   point for developers' own cells.
@@ -114,18 +120,21 @@ components.
 
 ## Open points
 
-- **(open)** Key map: today Enter edits, Escape commits and leaves, Enter
-  commits a formula. Excel uses Escape to cancel; decide, and how to add,
-  delete, move and change the type of cells.
-- **(open)** Formula cells: does the cell name bind a variable
+- Key map: ↑/↓ select a cell, Enter edits it (as does a double click). In
+  edit mode, Ctrl+Enter (Cmd+Enter on macOS) commits and leaves, Escape
+  discards the changes and leaves, as in Excel. Enter stays inside the cell
+  (a new line in text). Cells must leave these keys to the editor.
+- **(open)** Keys to add, delete, move and change the type of cells.
+- **(open)** Expression cells: does the cell name bind a variable
   (`M = q * L ^ 2 / 8`), and is the result shown as "M = 56.25" (Mathcad
   style)? Units?
 - **(open)** Tables: storage as Swan data plus a render call; formulas inside
   table cells (column formulas vs A1 references); which renderer functions
   the editor provides to documents, and how they stay available when the file
   is rendered without the editor (e.g. a Texl library imported by URL).
-- **(open)** Code editing widget for source and formulas (CodeMirror 6, with
-  Swan highlighting and autocompletion).
+- **(open)** The `text` and `expression` cells use CodeMirror 6 (Markdown
+  mode). Still to do: Swan highlighting inside `<% %>`, autocompletion from
+  `context.names()`, and a look that suits non-programmers.
 - **(open)** Undefined values: how a cell shows an error clearly.
 - **(open)** Shadow DOM and rich-text editors: ProseMirror's selection
   handling inside shadow roots needs checking before choosing it.

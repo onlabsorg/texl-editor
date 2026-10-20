@@ -20,11 +20,11 @@ describe("parseDocument", () => {
 
     it("splits the document at marker lines", () => {
         const cells = parseDocument(
-            "<!--% intro | text %-->\n# Title\n<!--% x | formula %-->\n<% 1 + 2 %>\n",
+            "<!--% intro | text %-->\n# Title\n<!--% x | expression %-->\n<% 1 + 2 %>\n",
         );
         expect(cells).to.deep.equal([
             { name: "intro", type: "text", texl: "# Title\n" },
-            { name: "x", type: "formula", texl: "<% 1 + 2 %>\n" },
+            { name: "x", type: "expression", texl: "<% 1 + 2 %>\n" },
         ]);
     });
 
@@ -44,7 +44,7 @@ describe("serializeDocument", () => {
     const sources = [
         "",
         "Hi <% name %>\n",
-        "<!--% intro | text %-->\n# Title\n<!--% x | formula %-->\n<% 1 + 2 %>\n",
+        "<!--% intro | text %-->\n# Title\n<!--% x | expression %-->\n<% 1 + 2 %>\n",
         "preamble\n<!--% a | text %-->\nbody",
     ];
     for (const source of sources) {

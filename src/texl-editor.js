@@ -8,9 +8,10 @@ import { createEngine } from "./engine.js";
  * The editor: a vertical stack of cells.
  *
  * Set `value` to the document text; read it back from `value` or from the
- * `change` event. Keyboard: ArrowUp/ArrowDown select a cell, Enter edits it,
- * Escape leaves edit mode and commits. Cells may handle keys themselves and
- * call `preventDefault()` to keep them from the editor.
+ * `change` event. Keyboard: ArrowUp/ArrowDown select a cell, Enter edits it;
+ * in edit mode Ctrl+Enter (Cmd+Enter on macOS) commits and leaves, Escape
+ * discards the changes and leaves. Cells may handle keys themselves and call
+ * `preventDefault()` to keep them from the editor.
  *
  * After every change the whole document is rendered again, cell by cell, in
  * one Texl context, so each cell sees the names bound by the cells above.
@@ -76,16 +77,17 @@ export class TexlEditor extends LitElement {
     _onKeyDown(e) {
         if (e.defaultPrevented) return;
         if (this._editing >= 0) {
-            if (e.key === "Escape") {
+            const commit = e.key === "Enter" && (e.ctrlKey || e.metaKey);
+            if (commit || e.key === "Escape") {
                 e.preventDefault();
-                this._cellElement(this._editing)?.exitEdit(true);
+                this._cellElement(this._editing)?.exitEdit(commit);
             }
             return;
         }
         const last = this._cells.length - 1;
         if (e.key === "ArrowDown") this._selected = Math.min(this._selected + 1, last);
         else if (e.key === "ArrowUp") this._selected = Math.max(this._selected - 1, 0);
-        else if (e.key === "Enter" && last >= 0) this._editing = this._selected;
+        else if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && last >= 0) this._editing = this._selected;
         else return;
         e.preventDefault();
     }
