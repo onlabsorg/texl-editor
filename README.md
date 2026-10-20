@@ -36,8 +36,9 @@ npm run dev        # demo page at http://localhost:5173
 </script>
 ```
 
-Keyboard: ↑/↓ select a cell, Enter edits it. In edit mode, Ctrl+Enter
-(Cmd+Enter on macOS) saves and leaves, Escape discards the changes.
+Keyboard: ↑/↓ select a cell; Enter, Ctrl+Enter or F2 edits it. In edit
+mode, Ctrl+Enter (Cmd+Enter on macOS) saves and leaves, Escape discards the
+changes.
 
 ## The file format
 

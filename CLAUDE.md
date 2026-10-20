@@ -52,8 +52,9 @@ is managed by nvm (LTS as default); non-interactive shells must run
   `<texl-editor>`, re-exports the public API.
 - `src/texl-editor.js` — `TexlEditor`: holds the cells, keyboard navigation,
   edit mode, and rendering (one Texl context per pass, cells rendered in
-  order). Public surface: `value` (document text), `base-url`, `change`
-  event, `rendered` (promise of the current rendering pass).
+  order). Public surface: `value` (document text), `base-url`, `rows`
+  (lines on the sheet, default 100), `change` event, `rendered` (promise of
+  the current rendering pass).
 - `src/texl-cell.js` — `TexlCell`, the base class of all cells: modes,
   layout, and the commit protocol (`cell-change` with `{texl}`, then
   `cell-exit`). Subclasses override `fromTexl`, `toTexl`, `renderEditor`;

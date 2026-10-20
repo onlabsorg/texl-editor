@@ -46,6 +46,7 @@ describe("serializeDocument", () => {
         "Hi <% name %>\n",
         "<!--% intro | text %-->\n# Title\n<!--% x | expression %-->\n<% 1 + 2 %>\n",
         "preamble\n<!--% a | text %-->\nbody",
+        "<!--% a | text %-->\n<!--% b | text %-->\nbody",
     ];
     for (const source of sources) {
         it(`round-trips ${JSON.stringify(source)}`, () => {

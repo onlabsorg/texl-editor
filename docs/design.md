@@ -13,7 +13,15 @@ but nobody has to.
 ## Editing model: a stack of cells
 
 A document is a **vertical stack of cells**, the way an Excel sheet is a grid
-of cells. It looks like lined paper.
+of cells. It looks like lined paper: each line is a cell, ruled below by a
+soft gray line (`--texl-line`), at least one line high and taller when its
+content needs it.
+
+- The sheet has a fixed number of lines (`rows`, 100 by default), or more if
+  the document has more cells. Lines below the last cell are empty and not
+  stored. Writing in one adds it to the document as a `text` cell, together
+  with empty cells for the empty lines above it, so it stays where it was
+  written.
 
 - The user moves between cells with the keyboard (or mouse) and presses
   Enter to edit one, as in Excel.
@@ -120,10 +128,14 @@ components.
 
 ## Open points
 
-- Key map: ↑/↓ select a cell, Enter edits it (as does a double click). In
-  edit mode, Ctrl+Enter (Cmd+Enter on macOS) commits and leaves, Escape
-  discards the changes and leaves, as in Excel. Enter stays inside the cell
-  (a new line in text). Cells must leave these keys to the editor.
+- Key map: ↑/↓ select a cell; Enter, Ctrl+Enter or F2 edits it, as does a
+  double click. Enter is the familiar key; Ctrl+Enter works too because it is
+  the key that commits, so it opens and closes a cell; F2 is Excel's edit
+  key. In edit mode, Ctrl+Enter (Cmd+Enter on macOS) commits and leaves,
+  Escape discards the changes and leaves, as in Excel. Enter stays inside the
+  cell (a new line in text). Cells must leave these keys to the editor.
+- Typing on a selected cell does not start editing it, unlike Excel, until
+  it is clear how that would work for other cell types (e.g. tables).
 - **(open)** Keys to add, delete, move and change the type of cells.
 - **(open)** Expression cells: does the cell name bind a variable
   (`M = q * L ^ 2 / 8`), and is the result shown as "M = 56.25" (Mathcad

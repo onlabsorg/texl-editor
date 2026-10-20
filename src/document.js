@@ -81,7 +81,7 @@ export function serializeDocument(cells) {
     return cells
         .map((cell, i) => {
             let texl = cell.texl;
-            if (i < cells.length - 1 && !texl.endsWith("\n")) texl += "\n";
+            if (texl && i < cells.length - 1 && !texl.endsWith("\n")) texl += "\n";
             return cell.marker === false ? texl : formatMarker(cell) + "\n" + texl;
         })
         .join("");

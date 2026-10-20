@@ -34,11 +34,16 @@ export class TexlCell extends LitElement {
         selected: { type: Boolean, reflect: true },
     };
 
+    // Lined paper: every cell is at least one line high and ruled below.
     static styles = css`
         :host {
             display: block;
+            box-sizing: border-box;
+            min-height: var(--texl-line-height, 2rem);
             border-left: 3px solid transparent;
+            border-bottom: 1px solid var(--texl-line, #e4e6ea);
             padding: 0.25rem 0.75rem;
+            line-height: 1.5rem;
         }
         :host([selected]) {
             border-left-color: var(--texl-accent, #2563eb);
@@ -47,7 +52,12 @@ export class TexlCell extends LitElement {
         :host([mode="edit"]) {
             background: var(--texl-edit-bg, #fffdf5);
         }
-        .empty,
+        .view > :first-child {
+            margin-top: 0;
+        }
+        .view > :last-child {
+            margin-bottom: 0;
+        }
         .no-editor {
             color: #999;
         }
@@ -114,8 +124,7 @@ export class TexlCell extends LitElement {
 
     /** Shows `output` as Markdown, sanitised: documents are untrusted. */
     renderView() {
-        if (!this.output.trim()) return html`<p class="empty">Empty cell</p>`;
         const markup = DOMPurify.sanitize(marked.parse(this.output));
-        return html`${unsafeHTML(markup)}`;
+        return html`<div class="view">${unsafeHTML(markup)}</div>`;
     }
 }

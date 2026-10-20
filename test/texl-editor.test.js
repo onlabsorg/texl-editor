@@ -23,7 +23,7 @@ function cells(editor) {
 describe("texl-editor", () => {
     it("renders one element per cell, by type", async () => {
         const editor = await editorWith(SOURCE);
-        expect(cells(editor).map((c) => c.localName)).to.deep.equal([
+        expect(cells(editor).slice(0, 2).map((c) => c.localName)).to.deep.equal([
             "texl-cell-text",
             "texl-cell-expression",
         ]);
@@ -128,6 +128,58 @@ describe("texl-editor", () => {
         await text.updateComplete;
         const reopened = EditorView.findFromDOM(text.shadowRoot.querySelector(".cm-editor"));
         expect(reopened.state.doc.toString()).to.equal(cells(editor)[0].texl);
+    });
+
+    for (const init of [{ key: "Enter" }, { key: "Enter", ctrlKey: true }, { key: "F2" }]) {
+        it(`starts editing with ${init.ctrlKey ? "Ctrl+" : ""}${init.key}`, async () => {
+            const editor = await editorWith(SOURCE);
+            const event = new KeyboardEvent("keydown", { cancelable: true, ...init });
+            editor.dispatchEvent(event);
+            await editor.updateComplete;
+            expect(event.defaultPrevented).to.be.true;
+            expect(cells(editor)[0].mode).to.equal("edit");
+        });
+    }
+
+    it("shows a sheet of 100 lines, or `rows` lines", async () => {
+        const editor = await editorWith(SOURCE);
+        expect(cells(editor)).to.have.length(100);
+        editor.rows = 5;
+        await editor.updateComplete;
+        expect(cells(editor)).to.have.length(5);
+        editor.rows = 1;
+        await editor.updateComplete;
+        expect(cells(editor)).to.have.length(2);
+    });
+
+    it("scrolls to keep the selected line in view", async () => {
+        const editor = await editorWith(SOURCE);
+        editor.style.height = "200px";
+        for (let i = 0; i < 30; i++) editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+        await editor.updateComplete;
+        const box = editor.getBoundingClientRect();
+        const line = cells(editor)[30].getBoundingClientRect();
+        expect(editor.scrollTop).to.be.greaterThan(0);
+        expect(line.top).to.be.at.least(box.top);
+        expect(line.bottom).to.be.at.most(box.bottom);
+    });
+
+    it("adds an empty line to the document when written in", async () => {
+        const editor = await editorWith(SOURCE);
+        const key = (init) => editor.dispatchEvent(new KeyboardEvent("keydown", { cancelable: true, ...init }));
+        for (let i = 0; i < 3; i++) key({ key: "ArrowDown" });
+        key({ key: "Enter", ctrlKey: true });
+        await editor.updateComplete;
+        const line = cells(editor)[3];
+        await line.updateComplete;
+        const view = EditorView.findFromDOM(line.shadowRoot.querySelector(".cm-editor"));
+        view.dispatch({ changes: { from: 0, insert: "Load: <% q %>" } });
+        key({ key: "Enter", ctrlKey: true });
+        await editor.rendered;
+        await editor.updateComplete;
+        expect(editor.value).to.equal(`${SOURCE}<!--%  | text %-->\n<!--%  | text %-->\nLoad: <% q %>`);
+        expect(cells(editor)[3].output).to.equal("Load: 12.5");
+        expect(cells(editor)).to.have.length(100);
     });
 
     it("shows unknown cell types as text and keeps their type", async () => {
