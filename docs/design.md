@@ -40,8 +40,10 @@ content needs it.
     a list of strings; Shift+F2 does the same for the selected line, also
     when it has none. Showing them is up to the page (the demo lists them
     beside the sheet until another line is selected: the editor fires
-    `selection-change` with the selected line).
-    **(open)** How comments are added and edited.
+    `selection-change` with the selected line). In the text editors,
+    comments are written as HTML comments; Shift+F2 inserts one.
+    **(open)** How comments are added and edited outside the source (e.g.
+    in a WYSIWYG cell).
   - Both margins are `--texl-margin` wide (6rem); they are the CSS parts
     `left-margin` and `right-margin`.
     **(open)** The layout on narrow screens.
@@ -157,8 +159,8 @@ components.
   in edit mode and keeps `input` up to date (without the line break that
   ends the cell body, which belongs to the file format and is added back).
   Its `languageExtensions()` give the editor its language: Swan
-  highlighting inside `<% %>` tags and Ctrl+Space to insert a tag
-  (`src/swan.js`). `MarkdownCell` extends it with Markdown highlighting
+  highlighting inside `<% %>` tags, Ctrl+Space to insert a tag and
+  Shift+F2 to insert a comment (`src/swan.js`). `MarkdownCell` extends it with Markdown highlighting
   (tags stay Swan, Markdown does not look inside them) and renders its
   output as Markdown.
 - Swan highlighting is a layer of decorations over the editor's language,

@@ -18,6 +18,14 @@ function ctrlSpace(view) {
     return event;
 }
 
+function shiftF2(view) {
+    const event = new KeyboardEvent("keydown", {
+        key: "F2", code: "F2", keyCode: 113, shiftKey: true, bubbles: true, cancelable: true,
+    });
+    view.contentDOM.dispatchEvent(event);
+    return event;
+}
+
 describe("cell rendering", () => {
     it("shows the output of a text cell as HTML, not Markdown", async () => {
         const cell = await fixture(html`<texl-cell-text .output=${"**a** <em>b</em>"}></texl-cell-text>`);
@@ -82,5 +90,22 @@ describe("Ctrl+Space", () => {
         ctrlSpace(view);
         expect(view.state.doc.toString()).to.equal("Span: <% L %>");
         expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).to.equal("L");
+    });
+});
+
+describe("Shift+F2 while editing", () => {
+    it("inserts a comment with the cursor inside it", async () => {
+        const [, view] = await cellInEditMode("texl-cell-text", "Span \n");
+        expect(shiftF2(view).defaultPrevented).to.be.true;
+        expect(view.state.doc.toString()).to.equal("Span <!--  -->");
+        expect(view.state.selection.main.head).to.equal("Span <!-- ".length);
+    });
+
+    it("puts the selected text in a comment", async () => {
+        const [, view] = await cellInEditMode("texl-cell-markdown", "Span: check\n");
+        view.dispatch({ selection: { anchor: 6, head: 11 } });
+        shiftF2(view);
+        expect(view.state.doc.toString()).to.equal("Span: <!-- check -->");
+        expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).to.equal("check");
     });
 });

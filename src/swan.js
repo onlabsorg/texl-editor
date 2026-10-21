@@ -1,4 +1,5 @@
-// Swan syntax highlighting for the CodeMirror cell editors.
+// Swan syntax highlighting for the CodeMirror cell editors, and the
+// commands that insert a tag or a comment.
 //
 // Highlighting is a layer of mark decorations over the editor's own
 // language: Texl finds its tags before anything else reads the text, so a
@@ -149,8 +150,19 @@ export function swanTags() {
  * @param {EditorView} view
  */
 export function insertTag(view) {
-    const open = `${TAG_OPEN} `;
-    const close = ` ${TAG_CLOSE}`;
+    return wrapSelections(view, `${TAG_OPEN} `, ` ${TAG_CLOSE}`);
+}
+
+/**
+ * Command: puts an HTML comment, `<!--  -->`, around each selection, or at
+ * the cursor, and leaves the cursor (or the selected text) inside it.
+ * @param {EditorView} view
+ */
+export function insertComment(view) {
+    return wrapSelections(view, "<!-- ", " -->");
+}
+
+function wrapSelections(view, open, close) {
     view.dispatch(
         view.state.changeByRange((range) => {
             const text = view.state.sliceDoc(range.from, range.to);

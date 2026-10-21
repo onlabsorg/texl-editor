@@ -14,4 +14,4 @@ export { TextCell, MarkdownCell, TexlEditor };
 export { registerCell, cellTagName, cellClass, cellTypes } from "./registry.js";
 export { parseDocument, serializeDocument, parseMarker, formatMarker, cellComments } from "./document.js";
 export { createEngine } from "./engine.js";
-export { swanTags, insertTag } from "./swan.js";
+export { swanTags, insertTag, insertComment } from "./swan.js";
