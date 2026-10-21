@@ -3,21 +3,27 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { TexlCell } from "../texl-cell.js";
-import { swanTags, insertTag } from "../swan.js";
+import { swanTags, insertTag, insertComment } from "../swan.js";
 
 // Keys the editor uses to leave edit mode (Mod-Enter commits, Escape
 // discards): CodeMirror must not handle them.
 const EDITOR_KEYS = new Set(["Mod-Enter", "Escape"]);
 const cellKeymap = defaultKeymap.filter((binding) => !EDITOR_KEYS.has(binding.key));
 
-/** Ctrl+Space inserts a tag, `<%  %>`, with the cursor inside it. */
-const tagKeymap = [{ key: "Ctrl-Space", run: insertTag }];
+/**
+ * Ctrl+Space inserts a tag, `<%  %>`, and Shift+F2 a comment, `<!--  -->`
+ * (the Excel key for a comment), with the cursor inside it.
+ */
+const templateKeymap = [
+    { key: "Ctrl-Space", run: insertTag },
+    { key: "Shift-F2", run: insertComment },
+];
 
 /**
  * A Texl template, edited as source in a CodeMirror 6 editor and shown as
  * HTML, like the base cell. Inline expressions are written as `<% ... %>`
- * tags, highlighted as Swan; Ctrl+Space inserts one. Also the fallback for
- * unknown cell types.
+ * tags, highlighted as Swan; Ctrl+Space inserts one, Shift+F2 a comment.
+ * Also the fallback for unknown cell types.
  *
  * The CodeMirror view exists only in edit mode: it is created after the
  * cell enters edit mode and destroyed when it leaves. It keeps `input` up to
@@ -100,11 +106,11 @@ export class TextCell extends TexlCell {
 
     /**
      * CodeMirror extensions for the language of the input: here a template
-     * with Swan tags and the key that inserts one. Subclasses override or
+     * with Swan tags and the keys that insert a tag or a comment. Subclasses override or
      * extend them.
      */
     languageExtensions() {
-        return [swanTags(), keymap.of(tagKeymap)];
+        return [swanTags(), keymap.of(templateKeymap)];
     }
 
     willUpdate(changed) {
