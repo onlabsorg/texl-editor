@@ -1,13 +1,48 @@
 <!--% markdown %-->
 # Beam check
 
-A simply supported beam with a uniform load.
-<% L = 6, q = 12.5 %>
-<!-- Anna: span and load from the client's brief, rev. B. -->
+A simply supported steel beam under a uniform load. The section properties
+come from the library [steel.texl](examples/steel.texl).
+<% texl.import("examples/steel.texl") ~> (lib -> bind "steel" lib.data) %>
 <!--% markdown %-->
-<% q * L ^ 2 / 8 %>
-<!-- Marco: check with the partial factors on q. -->
-<!-- Anna: agreed, next revision. -->
+## Input
+
+<%
+L = 6,                       # span in m
+gk = 4.0,                    # permanent load in kN/m
+qk = 8.5,                    # variable load in kN/m
+section = steel.IPE.IPE300
+%>
+- Span: <% L %> m
+- Section: <% section.name %>, steel <% steel.grade.name %>
+- Loads: g<sub>k</sub> = <% gk %> kN/m, q<sub>k</sub> = <% qk %> kN/m
+<!-- Anna: span and loads from the client's brief, rev. B. -->
 <!--% markdown %-->
-The midspan moment is **<% q * L ^ 2 / 8 %> kNm** for a span of <% L %> m.
+## Design load
+
+<%
+gs = section.mass * 9.81 / 1000,   # self-weight in kN/m
+qd = 1.35 * (gk + gs) + 1.5 * qk,
+MEd = qd * L ^ 2 / 8
+%>
+The self-weight is <% math.round (gs * 100) / 100 %> kN/m, so the design
+load is q<sub>d</sub> = <% math.round (qd * 100) / 100 %> kN/m and the
+midspan moment is **M<sub>Ed</sub> = <% math.round (MEd * 10) / 10 %> kNm**.
+<!-- Marco: partial factors from EN 1990, table A1.2(B). -->
+<!--% markdown %-->
+## Bending check
+
+<%
+sigma = MEd * 1000000 / section.W,
+fyd = steel.grade.fy / steel.gammaM0,
+u = sigma / fyd
+%>
+| Quantity         | Value                           |
+|------------------|---------------------------------|
+| Bending stress σ | <% math.round sigma %> N/mm²    |
+| Design strength  | <% math.round fyd %> N/mm²      |
+| Utilisation      | <% math.round (u * 100) %> %    |
+
+The <% section.name %> is <% u <= 1 ? "**adequate**" ; "**not adequate**" %>.
 <!-- Marco: fine for the report. -->
+<!-- Anna: try an IPE 270 too. -->
