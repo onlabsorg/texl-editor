@@ -3,7 +3,11 @@
 
 A simply supported beam with a uniform load.
 <% L = 6, q = 12.5 %>
+<!-- Anna: span and load from the client's brief, rev. B. -->
 <!--% markdown %-->
 <% q * L ^ 2 / 8 %>
+<!-- Marco: check with the partial factors on q. -->
+<!-- Anna: agreed, next revision. -->
 <!--% markdown %-->
 The midspan moment is **<% q * L ^ 2 / 8 %> kNm** for a span of <% L %> m.
+<!-- Marco: fine for the report. -->

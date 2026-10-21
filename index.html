@@ -101,6 +101,42 @@
             #keys dd {
                 margin: 0;
             }
+            /* The comments of a line, in the gray margin right of the sheet,
+               under the switch button */
+            #comments {
+                position: fixed;
+                top: 4rem;
+                right: 1rem;
+                width: 15rem;
+                font-size: 0.8125rem;
+                color: #333;
+            }
+            @media (max-width: 86rem) {
+                #comments {
+                    display: none;
+                }
+            }
+            #comments h2 {
+                margin: 0 0 0.5rem;
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #888;
+            }
+            #comments ul {
+                margin: 0;
+                padding: 0;
+                list-style: none;
+            }
+            #comments li {
+                margin-bottom: 0.5rem;
+                padding: 0.5rem 0.625rem;
+                border-left: 3px solid #b7791f;
+                border-radius: 2px;
+                background: #fff;
+                white-space: pre-wrap;
+            }
             kbd {
                 padding: 0 0.3rem;
                 border: 1px solid #ccc;
@@ -141,6 +177,7 @@
                 <dt><kbd data-mod>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
                 <dt><kbd data-mod>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd data-mod>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>Redo</dd>
                 <dt><kbd data-mod>Ctrl</kbd>+<kbd>/</kbd></dt><dd>Change type</dd>
+                <dt><kbd>Shift</kbd>+<kbd>F2</kbd></dt><dd>Show comments</dd>
             </dl>
             <h2>While editing</h2>
             <dl>
@@ -149,13 +186,12 @@
                 <dt><kbd>Ctrl</kbd>+<kbd>Space</kbd></dt><dd>Insert formula</dd>
             </dl>
         </aside>
-        <!-- Comments on lines: each child whose slot is a line number -->
-        <texl-editor id="editor">
-            <p slot="1"><b>Anna:</b> span and load from the client's brief, rev. B.</p>
-            <p slot="2"><b>Marco:</b> check with the partial factors on q.</p>
-            <p slot="2"><b>Anna:</b> agreed, next revision.</p>
-            <p slot="3"><b>Marco:</b> fine for the report.</p>
-        </texl-editor>
+        <!-- The comments of the line whose comment icon was clicked -->
+        <aside id="comments" aria-label="comments" hidden>
+            <h2></h2>
+            <ul></ul>
+        </aside>
+        <texl-editor id="editor"></texl-editor>
         <pre id="source" hidden></pre>
         <script type="module">
             import "./src/index.js";
@@ -167,6 +203,24 @@
             source.textContent = editor.value;
             editor.addEventListener("change", () => (source.textContent = editor.value));
             editor.focus();
+
+            // The comments of a line, shown until another line is selected
+            const comments = document.getElementById("comments");
+            let commentsLine = 0;
+            editor.addEventListener("comments-click", (e) => {
+                commentsLine = e.detail.line;
+                const count = e.detail.comments.length;
+                comments.querySelector("h2").textContent = count
+                    ? `Comments on line ${commentsLine}`
+                    : `No comments on line ${commentsLine}`;
+                comments.querySelector("ul").replaceChildren(
+                    ...e.detail.comments.map((text) => Object.assign(document.createElement("li"), { textContent: text })),
+                );
+                comments.hidden = false;
+            });
+            editor.addEventListener("selection-change", (e) => {
+                if (e.detail.line !== commentsLine) comments.hidden = true;
+            });
 
             // Name the modifier keys as macOS does
             if (/Mac|iPhone|iPad/.test(navigator.platform)) {

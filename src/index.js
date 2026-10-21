@@ -12,6 +12,6 @@ if (!customElements.get("texl-editor")) customElements.define("texl-editor", Tex
 export { TexlCell } from "./texl-cell.js";
 export { TextCell, MarkdownCell, TexlEditor };
 export { registerCell, cellTagName, cellClass, cellTypes } from "./registry.js";
-export { parseDocument, serializeDocument, parseMarker, formatMarker } from "./document.js";
+export { parseDocument, serializeDocument, parseMarker, formatMarker, cellComments } from "./document.js";
 export { createEngine } from "./engine.js";
 export { swanTags, insertTag } from "./swan.js";
