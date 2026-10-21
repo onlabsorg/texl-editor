@@ -2,19 +2,22 @@ import { html, css } from "lit";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
-import { markdown } from "@codemirror/lang-markdown";
 import { TexlCell } from "../texl-cell.js";
+import { swanTags, insertTag } from "../swan.js";
 
 // Keys the editor uses to leave edit mode (Mod-Enter commits, Escape
 // discards): CodeMirror must not handle them.
 const EDITOR_KEYS = new Set(["Mod-Enter", "Escape"]);
 const cellKeymap = defaultKeymap.filter((binding) => !EDITOR_KEYS.has(binding.key));
 
+/** Ctrl+Space inserts a tag, `<%  %>`, with the cursor inside it. */
+const tagKeymap = [{ key: "Ctrl-Space", run: insertTag }];
+
 /**
- * A Markdown Texl template, edited as source in a CodeMirror 6 editor.
- * Inline expressions are written by hand as `<% ... %>` tags. Also the
- * fallback for unknown cell types.
+ * A Texl template, edited as source in a CodeMirror 6 editor and shown as
+ * HTML, like the base cell. Inline expressions are written as `<% ... %>`
+ * tags, highlighted as Swan; Ctrl+Space inserts one. Also the fallback for
+ * unknown cell types.
  *
  * The CodeMirror view exists only in edit mode: it is created after the
  * cell enters edit mode and destroyed when it leaves. It keeps `input` up to
@@ -73,19 +76,27 @@ export class TextCell extends TexlCell {
         return (this.input ?? "") + (this._lineBreak ?? "");
     }
 
-    /** CodeMirror extensions of the editor. Subclasses may extend them. */
+    /** CodeMirror extensions of the editor. */
     editorExtensions() {
         return [
             history(),
             drawSelection(),
             EditorView.lineWrapping,
-            markdown(),
-            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+            this.languageExtensions(),
             keymap.of([...cellKeymap, ...historyKeymap]),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged) this.input = update.state.doc.toString();
             }),
         ];
+    }
+
+    /**
+     * CodeMirror extensions for the language of the input: here a template
+     * with Swan tags and the key that inserts one. Subclasses override or
+     * extend them.
+     */
+    languageExtensions() {
+        return [swanTags(), keymap.of(tagKeymap)];
     }
 
     willUpdate(changed) {

@@ -1,9 +1,9 @@
-<!--% intro | text %-->
+<!--% markdown %-->
 # Beam check
 
 A simply supported beam with a uniform load.
 <% L = 6, q = 12.5 %>
-<!--% M | expression %-->
+<!--% expression %-->
 <% q * L ^ 2 / 8 %>
-<!--% result | text %-->
+<!--% markdown %-->
 The midspan moment is **<% q * L ^ 2 / 8 %> kNm** for a span of <% L %> m.

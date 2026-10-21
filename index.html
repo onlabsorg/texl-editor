@@ -10,7 +10,7 @@
                 display: flex;
                 flex-direction: column;
                 height: 100vh;
-                max-width: 48rem;
+                max-width: 52rem;
                 margin: 0 auto;
                 padding: 2rem 1rem;
                 font-family: system-ui, sans-serif;
@@ -72,7 +72,7 @@
                 font-size: 0.8125rem;
                 color: #555;
             }
-            @media (max-width: 80rem) {
+            @media (max-width: 86rem) {
                 #keys {
                     display: none;
                 }
@@ -147,7 +147,13 @@
                 <dt><kbd>Esc</kbd></dt><dd>Discard</dd>
             </dl>
         </aside>
-        <texl-editor id="editor"></texl-editor>
+        <!-- Comments on lines: each child whose slot is a line number -->
+        <texl-editor id="editor">
+            <p slot="1"><b>Anna:</b> span and load from the client's brief, rev. B.</p>
+            <p slot="2"><b>Marco:</b> check with the partial factors on q.</p>
+            <p slot="2"><b>Anna:</b> agreed, next revision.</p>
+            <p slot="3"><b>Marco:</b> fine for the report.</p>
+        </texl-editor>
         <pre id="source" hidden></pre>
         <script type="module">
             import "./src/index.js";

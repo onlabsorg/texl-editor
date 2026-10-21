@@ -1,35 +1,45 @@
 import { expect } from "@open-wc/testing";
-import { parseDocument, serializeDocument, parseMarker } from "../src/document.js";
+import { parseDocument, serializeDocument, parseMarker, formatMarker } from "../src/document.js";
 
 describe("parseMarker", () => {
-    it("reads name and type", () => {
-        expect(parseMarker(" loads | table ")).to.deep.equal({ name: "loads", type: "table" });
+    it("reads the type", () => {
+        expect(parseMarker(" table ")).to.deep.equal({ type: "table" });
+    });
+
+    it("ignores the name of an older marker", () => {
+        expect(parseMarker(" loads | table ")).to.deep.equal({ type: "table" });
     });
 
     it("defaults the type to text", () => {
-        expect(parseMarker(" intro ")).to.deep.equal({ name: "intro", type: "text" });
+        expect(parseMarker("  ")).to.deep.equal({ type: "text" });
+    });
+});
+
+describe("formatMarker", () => {
+    it("writes only the type", () => {
+        expect(formatMarker({ type: "expression" })).to.equal("<!--% expression %-->");
     });
 });
 
 describe("parseDocument", () => {
     it("opens a plain Texl file as one text cell", () => {
         expect(parseDocument("Hi <% name %>\n")).to.deep.equal([
-            { type: "text", name: "", marker: false, texl: "Hi <% name %>\n" },
+            { type: "text", marker: false, texl: "Hi <% name %>\n" },
         ]);
     });
 
     it("splits the document at marker lines", () => {
         const cells = parseDocument(
-            "<!--% intro | text %-->\n# Title\n<!--% x | expression %-->\n<% 1 + 2 %>\n",
+            "<!--% text %-->\n# Title\n<!--% expression %-->\n<% 1 + 2 %>\n",
         );
         expect(cells).to.deep.equal([
-            { name: "intro", type: "text", texl: "# Title\n" },
-            { name: "x", type: "expression", texl: "<% 1 + 2 %>\n" },
+            { type: "text", texl: "# Title\n" },
+            { type: "expression", texl: "<% 1 + 2 %>\n" },
         ]);
     });
 
     it("keeps text before the first marker", () => {
-        const cells = parseDocument("preamble\n<!--% a | text %-->\nbody\n");
+        const cells = parseDocument("preamble\n<!--% text %-->\nbody\n");
         expect(cells.map((c) => c.texl)).to.deep.equal(["preamble\n", "body\n"]);
         expect(cells[0].marker).to.equal(false);
     });
@@ -44,9 +54,9 @@ describe("serializeDocument", () => {
     const sources = [
         "",
         "Hi <% name %>\n",
-        "<!--% intro | text %-->\n# Title\n<!--% x | expression %-->\n<% 1 + 2 %>\n",
-        "preamble\n<!--% a | text %-->\nbody",
-        "<!--% a | text %-->\n<!--% b | text %-->\nbody",
+        "<!--% text %-->\n# Title\n<!--% expression %-->\n<% 1 + 2 %>\n",
+        "preamble\n<!--% text %-->\nbody",
+        "<!--% text %-->\n<!--% text %-->\nbody",
     ];
     for (const source of sources) {
         it(`round-trips ${JSON.stringify(source)}`, () => {
@@ -56,11 +66,11 @@ describe("serializeDocument", () => {
 
     it("ends every cell but the last with a line break", () => {
         const cells = [
-            { name: "a", type: "text", texl: "one" },
-            { name: "b", type: "text", texl: "two" },
+            { type: "text", texl: "one" },
+            { type: "text", texl: "two" },
         ];
         expect(serializeDocument(cells)).to.equal(
-            "<!--% a | text %-->\none\n<!--% b | text %-->\ntwo",
+            "<!--% text %-->\none\n<!--% text %-->\ntwo",
         );
     });
 });
