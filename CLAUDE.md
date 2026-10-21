@@ -61,12 +61,15 @@ is managed by nvm (LTS as default); non-interactive shells must run
   layout, and the commit protocol (`cell-change` with `{texl}`, then
   `cell-exit`). Subclasses override `fromTexl`, `toTexl`, `renderEditor`;
   the base `renderView` (output as sanitised HTML) rarely needs it.
-  Text-based cells override `languageExtensions()` of `TextCell`.
-- `src/cells/` — built-in cell types (`text`, `markdown`, `expression`).
+  Text-based cells override `languageExtensions()` of `TextCell`. Static
+  `type`, `label` and `icon` name the type in the margin's type menu.
+- `src/cells/` — built-in cell types (`text`, `markdown`). Formulas are
+  `<% %>` tags inside them; there is no formula cell (parent D11).
 - `src/swan.js` — Swan highlighting for the cell editors (tags or whole
   input) and the command that inserts a `<%  %>` tag.
 - `src/registry.js` — `registerCell(CellClass)` maps a cell type to its
   custom element `texl-cell-<type>`; unknown types fall back to `text`.
+  `cellClass(type)` and `cellTypes()` list them (for the type menu).
 - `src/document.js` — parse a file into cells and serialise them back
   (round-trip exact).
 - `src/engine.js` — loads the wasm module once, creates engines.

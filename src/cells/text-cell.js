@@ -31,6 +31,14 @@ const tagKeymap = [{ key: "Ctrl-Space", run: insertTag }];
 export class TextCell extends TexlCell {
     static type = "text";
 
+    static label = "Text";
+
+    static icon = html`<svg viewBox="0 0 24 24">
+        <path d="M4 7V4h16v3" />
+        <path d="M9 20h6" />
+        <path d="M12 4v16" />
+    </svg>`;
+
     static styles = [
         TexlCell.styles,
         css`

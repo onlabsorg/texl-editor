@@ -1,8 +1,9 @@
 import { LitElement, css } from "lit";
 import { html, unsafeStatic } from "lit/static-html.js";
 import { parseDocument, serializeDocument } from "./document.js";
-import { cellTagName } from "./registry.js";
+import { cellTagName, cellClass, cellTypes } from "./registry.js";
 import { createEngine } from "./engine.js";
+import { TexlCell } from "./texl-cell.js";
 
 /** What an empty line below the document shows: an empty markdown cell. */
 const EMPTY_LINE = { type: "markdown", texl: "" };
@@ -10,6 +11,11 @@ const EMPTY_LINE = { type: "markdown", texl: "" };
 /** Whether a cell looks like an empty line: an empty markdown or text cell. */
 function isEmptyLine(cell) {
     return (cell.type === "markdown" || cell.type === "text") && !cell.texl;
+}
+
+/** The name of a cell type shown to the user. */
+function typeLabel(type) {
+    return cellClass(type)?.label || type;
 }
 
 /** The most changes that can be undone. */
@@ -44,7 +50,11 @@ function isMod(e) {
  *   browser's clipboard events, so the clipboard holds the cells as Texl
  *   source with their markers, and pasted text replaces the selected cells;
  * - Mod+Z undoes the last change to the cells, Mod+Shift+Z or Mod+Y redoes
- *   it. While editing, these keys belong to the cell's own text editor.
+ *   it. While editing, these keys belong to the cell's own text editor;
+ * - Mod+/ opens the menu of cell types for the selected cells, as the icon
+ *   of a cell's type in the left margin does on a click. In the menu,
+ *   ArrowUp/ArrowDown (or a type's first letter) pick a type, Enter changes
+ *   the selected cells to it, Escape closes the menu.
  *
  * The editor looks like a sheet of lined paper: each line is a cell. The
  * sheet has `rows` lines (100 by default), or more if the document has more
@@ -60,7 +70,10 @@ function isMod(e) {
  * (part `left-margin`) is for the editor's own objects about each line; it
  * shows the line number, 1, 2, 3, ..., also on the empty lines below the
  * document, as in Excel. Cells have no name: they are known by their line
- * number. The right margin (part `right-margin`) is for comments on a line:
+ * number. Before the number, a discreet icon shows the cell's type (on the
+ * empty lines, only under the mouse or when selected); a click on it opens
+ * the menu of cell types. Changing the type keeps the cell's Texl source.
+ * The right margin (part `right-margin`) is for comments on a line:
  * each child of the editor with `slot` set to a line number is a comment on
  * that line, and the line's right margin shows a comment icon with their
  * number. The comments themselves are not shown yet. Keys and clipboard
@@ -79,6 +92,8 @@ export class TexlEditor extends LitElement {
         _selected: { state: true },
         _editing: { state: true },
         _comments: { state: true },
+        _menu: { state: true },
+        _menuItem: { state: true },
     };
 
     static styles = css`
@@ -102,10 +117,14 @@ export class TexlEditor extends LitElement {
             min-width: 0;
             border-bottom: 1px solid var(--texl-line, #e4e6ea);
         }
+        /* The type icon on the left, the line number on the right */
         .margin.left {
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
             border-right: 1px solid var(--texl-margin-line, #7aa2f0);
-            padding: 0.0625rem 0.5rem 0.25rem;
-            text-align: right;
+            padding: 0.25rem 0.5rem 0.25rem 0.375rem;
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             font-size: 0.625rem;
             font-weight: normal;
@@ -118,6 +137,99 @@ export class TexlEditor extends LitElement {
         .margin.left.selected,
         .margin.left:hover {
             color: var(--texl-line-number-active, #9aa0aa);
+        }
+        /* The number sits a little higher than the text, as before the icon */
+        .line-number {
+            margin: -0.1875rem 0 0 auto;
+        }
+        /* The type icon: as discreet as the line number, until pointed at */
+        .type-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.5rem;
+            height: 1.5rem;
+            padding: 0;
+            border: none;
+            border-radius: 4px;
+            background: none;
+            color: inherit;
+            cursor: pointer;
+        }
+        .type-button:hover,
+        .type-button[aria-expanded="true"] {
+            background: var(--texl-hover-bg, rgb(15 23 42 / 0.06));
+            color: var(--texl-icon-active, #4b5563);
+        }
+        .margin.left.empty:not(:hover, .selected) .type-button:not([aria-expanded="true"]) {
+            visibility: hidden;
+        }
+        svg {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .type-button svg {
+            width: 0.875rem;
+            height: 0.875rem;
+        }
+        /* The menu of cell types: a light card below the icon */
+        .type-menu {
+            position: absolute;
+            top: calc(100% - 0.125rem);
+            left: 0.25rem;
+            z-index: 10;
+            min-width: 11rem;
+            margin: 0;
+            padding: 0.25rem;
+            list-style: none;
+            border: 1px solid var(--texl-menu-border, rgb(15 23 42 / 0.08));
+            border-radius: 8px;
+            background: var(--texl-menu-bg, #fff);
+            box-shadow:
+                0 1px 2px rgb(15 23 42 / 0.06),
+                0 8px 24px rgb(15 23 42 / 0.1);
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            font-size: 0.8125rem;
+            line-height: 1.25rem;
+            color: var(--texl-menu-text, #1f2937);
+            animation: menu-in 0.12s ease-out;
+        }
+        @keyframes menu-in {
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+        }
+        .type-menu li {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+            padding: 0.3125rem 0.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .type-menu li.active {
+            background: var(--texl-menu-active-bg, rgb(37 99 235 / 0.08));
+        }
+        .type-menu li svg {
+            flex: none;
+            width: 1rem;
+            height: 1rem;
+            color: var(--texl-menu-icon, #6b7280);
+        }
+        .type-menu li.active svg {
+            color: var(--texl-accent, #2563eb);
+        }
+        .type-menu .label {
+            flex: 1;
+        }
+        .type-menu .check {
+            width: 0.875rem;
+            height: 0.875rem;
+            color: var(--texl-accent, #2563eb);
         }
         .margin.right {
             border-left: 1px solid var(--texl-margin-line, #7aa2f0);
@@ -157,6 +269,16 @@ export class TexlEditor extends LitElement {
         /** Earlier and undone states, as `{cells, anchor, selected}`. */
         this._undoStack = [];
         this._redoStack = [];
+        /** The line whose menu of cell types is open, or -1. */
+        this._menu = -1;
+        /** The highlighted item of the menu, an index in `cellTypes()`. */
+        this._menuItem = 0;
+        /** Closes the menu on a press outside it and its icon. */
+        this._onPointerDown = (e) => {
+            const path = e.composedPath();
+            if (!path.some((node) => node.classList?.contains("type-menu") || node.classList?.contains("type-button")))
+                this._closeMenu();
+        };
         this.addEventListener("keydown", (e) => this._onKeyDown(e));
         for (const type of ["copy", "cut", "paste"]) this.addEventListener(type, (e) => this._onClipboard(e));
     }
@@ -164,6 +286,12 @@ export class TexlEditor extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
+        document.addEventListener("pointerdown", this._onPointerDown, true);
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener("pointerdown", this._onPointerDown, true);
     }
 
     /** The document text. */
@@ -176,6 +304,7 @@ export class TexlEditor extends LitElement {
         this._anchor = 0;
         this._selected = 0;
         this._editing = -1;
+        this._menu = -1;
         this._undoStack = [];
         this._redoStack = [];
         this.rendered = this._renderCells();
@@ -197,6 +326,10 @@ export class TexlEditor extends LitElement {
     _onKeyDown(e) {
         // Keys from the margin content (children of the editor) are theirs
         if (e.defaultPrevented || e.target !== this) return;
+        if (this._menu >= 0) {
+            this._onMenuKeyDown(e);
+            return;
+        }
         if (this._editing >= 0) {
             const commit = e.key === "Enter" && (e.ctrlKey || e.metaKey);
             if (commit || e.key === "Escape") {
@@ -217,8 +350,77 @@ export class TexlEditor extends LitElement {
         else if ((e.key === "Delete" || e.key === "Backspace") && !hasModifier(e)) this._deleteCells();
         else if (isMod(e) && !e.altKey && e.key.toLowerCase() === "z") this._undo(e.shiftKey ? "redo" : "undo");
         else if (isMod(e) && !hasModifier(e, "ctrlKey", "metaKey") && e.key.toLowerCase() === "y") this._undo("redo");
+        // Shift is allowed: some layouts need it for "/"
+        else if (isMod(e) && !e.altKey && e.key === "/") this._openMenu(this._selected);
         else return;
         e.preventDefault();
+    }
+
+    /** Keys while the menu of cell types is open: it takes them all. */
+    _onMenuKeyDown(e) {
+        const types = cellTypes();
+        const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+        if (step) this._menuItem = (this._menuItem + step + types.length) % types.length;
+        else if (e.key === "Home") this._menuItem = 0;
+        else if (e.key === "End") this._menuItem = types.length - 1;
+        else if (e.key === "Enter" || e.key === " ") this._setType(types[this._menuItem]);
+        else if (e.key === "Escape" || e.key === "Tab") this._closeMenu();
+        else if (e.key.length === 1 && !hasModifier(e, "shiftKey")) {
+            // A letter picks the next type whose name starts with it
+            const letter = e.key.toLowerCase();
+            for (let i = 1; i <= types.length; i++) {
+                const item = (this._menuItem + i) % types.length;
+                if (typeLabel(types[item]).toLowerCase().startsWith(letter)) {
+                    this._menuItem = item;
+                    break;
+                }
+            }
+        }
+        e.preventDefault();
+    }
+
+    /**
+     * Opens the menu of cell types on line `index`, or closes it if it is
+     * open there. The menu acts on the selected lines: a line outside the
+     * selection is selected first.
+     */
+    _openMenu(index) {
+        if (this._menu === index) {
+            this._closeMenu();
+            return;
+        }
+        const [first, last] = this._range();
+        if (index < first || index > last) this._select(index);
+        this._editing = -1;
+        this._menu = index;
+        this._menuItem = Math.max(0, cellTypes().indexOf((this._cells[index] ?? EMPTY_LINE).type));
+        this.focus();
+    }
+
+    _closeMenu() {
+        this._menu = -1;
+    }
+
+    /**
+     * Changes the selected cells to `type`, keeping their Texl source, and
+     * closes the menu. Selected lines below the document are added to it.
+     */
+    _setType(type) {
+        this._closeMenu();
+        this.focus();
+        const [first, last] = this._range();
+        const cells = [...this._cells];
+        while (cells.length <= last) cells.push({ ...EMPTY_LINE });
+        let changed = false;
+        for (let i = first; i <= last; i++) {
+            if (cells[i].type === type) continue;
+            // The type must be written: the cell needs a marker
+            const { marker, ...cell } = cells[i];
+            cells[i] = { ...cell, type };
+            // An empty markdown or text line below the document stays empty
+            if (i < this._cells.length || !isEmptyLine(cells[i])) changed = true;
+        }
+        if (changed) this._setCells(cells);
     }
 
     /** The first and last selected lines: from the anchor to `_selected`. */
@@ -234,6 +436,7 @@ export class TexlEditor extends LitElement {
 
     /** Selects line `index` alone and edits it. */
     _edit(index) {
+        this._closeMenu();
         this._select(index);
         this._editing = index;
     }
@@ -351,6 +554,7 @@ export class TexlEditor extends LitElement {
     updated(changed) {
         // Keep the selected line in view while moving with the keys
         if (changed.has("_selected")) this._cellElement(this._selected)?.scrollIntoView({ block: "nearest" });
+        if (changed.has("_menu")) this.renderRoot.querySelector(".type-menu")?.scrollIntoView({ block: "nearest" });
     }
 
     /** Counts the comments that `slot`, in the right margin of line `index`, gets. */
@@ -374,6 +578,52 @@ export class TexlEditor extends LitElement {
         </span>`;
     }
 
+    /** The icon of line `index`'s cell type, which opens the menu of types. */
+    _renderTypeButton(index, type) {
+        const cellType = cellClass(type);
+        const label = cellType ? typeLabel(type) : `${type} (unknown type)`;
+        const open = this._menu === index;
+        return html`<button
+                class="type-button"
+                type="button"
+                tabindex="-1"
+                title=${label}
+                aria-label="Cell type: ${label}"
+                aria-haspopup="menu"
+                aria-expanded=${open ? "true" : "false"}
+                @mousedown=${(e) => e.preventDefault()}
+                @click=${(e) => {
+                    e.stopPropagation();
+                    this._openMenu(index);
+                }}
+            >
+                ${(cellType ?? TexlCell).icon}
+            </button>
+            ${open ? this._renderMenu(type) : ""}`;
+    }
+
+    /** The menu of cell types, with `current` checked. */
+    _renderMenu(current) {
+        const items = cellTypes().map(
+            (type, i) => html`<li
+                role="menuitemradio"
+                aria-checked=${type === current ? "true" : "false"}
+                class=${i === this._menuItem ? "active" : ""}
+                @pointerenter=${() => (this._menuItem = i)}
+                @click=${() => this._setType(type)}
+            >
+                ${cellClass(type).icon}
+                <span class="label">${typeLabel(type)}</span>
+                ${type === current
+                    ? html`<svg class="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>`
+                    : ""}
+            </li>`,
+        );
+        return html`<ul class="type-menu" role="menu" aria-label="Cell type" @click=${(e) => e.stopPropagation()}>
+            ${items}
+        </ul>`;
+    }
+
     _cellElement(index) {
         return this.renderRoot.querySelector(`[data-index="${index}"]`);
     }
@@ -383,7 +633,10 @@ export class TexlEditor extends LitElement {
         const rows = Array.from({ length: this._rowCount() }, (_, i) => {
             const cell = this._cells[i] ?? EMPTY_LINE;
             const tag = unsafeStatic(cellTagName(cell.type));
-            return html`<div class="margin left ${i >= first && i <= last ? "selected" : ""}" part="left-margin" @click=${(e) => this._select(i, e.shiftKey)}>${i + 1}</div>
+            const classes = [i >= first && i <= last ? "selected" : "", i >= this._cells.length ? "empty" : ""].join(" ");
+            return html`<div class="margin left ${classes}" part="left-margin" @click=${(e) => this._select(i, e.shiftKey)}>
+                    ${this._renderTypeButton(i, cell.type)}<span class="line-number">${i + 1}</span>
+                </div>
                 <${tag}
                 data-index=${i}
                 .texl=${cell.texl}

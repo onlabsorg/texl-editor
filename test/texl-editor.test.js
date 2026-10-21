@@ -4,7 +4,7 @@ import "../src/index.js";
 
 const SOURCE = `<!--% text %-->
 <% L = 6, q = 12.5 %>Span: <% L %> m
-<!--% expression %-->
+<!--% markdown %-->
 <% q * L ^ 2 / 8 %>
 `;
 
@@ -25,16 +25,16 @@ describe("texl-editor", () => {
         const editor = await editorWith(SOURCE);
         expect(cells(editor).slice(0, 2).map((c) => c.localName)).to.deep.equal([
             "texl-cell-text",
-            "texl-cell-expression",
+            "texl-cell-markdown",
         ]);
     });
 
     it("renders cells in one shared scope", async () => {
         const editor = await editorWith(SOURCE);
-        const [text, expression] = cells(editor);
-        await expression.updateComplete;
+        const [text, formula] = cells(editor);
+        await formula.updateComplete;
         expect(text.output).to.equal("Span: 6 m\n");
-        expect(expression.shadowRoot.textContent.trim()).to.equal("56.25");
+        expect(formula.shadowRoot.textContent.trim()).to.equal("56.25");
     });
 
     it("returns the document unchanged", async () => {
@@ -42,17 +42,17 @@ describe("texl-editor", () => {
         expect(editor.value).to.equal(SOURCE);
     });
 
-    it("edits an expression without <% %> and updates the document", async () => {
+    it("edits a cell and updates the document", async () => {
         const editor = await editorWith(SOURCE);
         editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
         editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
         await editor.updateComplete;
-        const expression = cells(editor)[1];
-        await expression.updateComplete;
-        const view = EditorView.findFromDOM(expression.shadowRoot.querySelector(".cm-editor"));
-        expect(view.state.doc.toString()).to.equal(" q * L ^ 2 / 8 ");
+        const formula = cells(editor)[1];
+        await formula.updateComplete;
+        const view = EditorView.findFromDOM(formula.shadowRoot.querySelector(".cm-editor"));
+        expect(view.state.doc.toString()).to.equal("<% q * L ^ 2 / 8 %>");
 
-        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: " q * L " } });
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "<% q * L %>" } });
         view.contentDOM.dispatchEvent(
             new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, keyCode: 13, bubbles: true, composed: true, cancelable: true }),
         );
@@ -235,7 +235,7 @@ describe("texl-editor", () => {
             await editor.rendered;
             await editor.updateComplete;
         };
-        const EXPRESSION = "<!--% expression %-->\n<% q * L ^ 2 / 8 %>\n";
+        const FORMULA = "<!--% markdown %-->\n<% q * L ^ 2 / 8 %>\n";
 
         for (const name of ["Delete", "Backspace"]) {
             it(`deletes the selected cell with ${name}`, async () => {
@@ -244,9 +244,9 @@ describe("texl-editor", () => {
                 editor.addEventListener("change", () => changes++);
                 expect(key(editor, { key: name }).defaultPrevented).to.be.true;
                 await settle(editor);
-                expect(editor.value).to.equal(EXPRESSION);
+                expect(editor.value).to.equal(FORMULA);
                 expect(changes).to.equal(1);
-                expect(cells(editor)[0].localName).to.equal("texl-cell-expression");
+                expect(cells(editor)[0].localName).to.equal("texl-cell-markdown");
             });
         }
 
@@ -266,7 +266,7 @@ describe("texl-editor", () => {
                 const editor = await editorWith(SOURCE);
                 expect(key(editor, init).defaultPrevented).to.be.true;
                 await settle(editor);
-                expect(editor.value).to.equal(SOURCE.replace("<!--% expression", "<!--% markdown %-->\n<!--% expression"));
+                expect(editor.value).to.equal(SOURCE.replace("<!--% markdown", "<!--% markdown %-->\n<!--% markdown"));
                 expect(cells(editor)[1].selected).to.be.true;
                 expect(cells(editor)[1].mode).to.equal("render");
                 expect(cells(editor)[2].output.trim()).to.equal("56.25");
@@ -278,7 +278,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             key(editor, { key: "Enter", altKey: true, shiftKey: true });
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE.replace("<!--% expression", "<!--% markdown %-->\n<!--% expression"));
+            expect(editor.value).to.equal(SOURCE.replace("<!--% markdown", "<!--% markdown %-->\n<!--% markdown"));
             expect(cells(editor)[1].selected).to.be.true;
         });
 
@@ -308,7 +308,7 @@ describe("texl-editor", () => {
             const editor = await editorWith(SOURCE + "<!--% text %-->\n");
             key(editor, { key: "ArrowDown" });
             key(editor, { key: "Delete" });
-            expect(editor.value).to.equal(SOURCE.slice(0, -EXPRESSION.length));
+            expect(editor.value).to.equal(SOURCE.slice(0, -FORMULA.length));
         });
 
         it("gives a marker to a cell without one that is no longer first", async () => {
@@ -323,7 +323,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             const event = clipboard(editor, "copy");
             expect(event.defaultPrevented).to.be.true;
-            expect(event.clipboardData.getData("text/plain")).to.equal(EXPRESSION);
+            expect(event.clipboardData.getData("text/plain")).to.equal(FORMULA);
             expect(editor.value).to.equal(SOURCE);
         });
 
@@ -332,8 +332,8 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             const event = clipboard(editor, "cut");
             await settle(editor);
-            expect(event.clipboardData.getData("text/plain")).to.equal(EXPRESSION);
-            expect(editor.value).to.equal(SOURCE.slice(0, -EXPRESSION.length));
+            expect(event.clipboardData.getData("text/plain")).to.equal(FORMULA);
+            expect(editor.value).to.equal(SOURCE.slice(0, -FORMULA.length));
         });
 
         it("pastes a copied cell in place of the selected one", async () => {
@@ -343,7 +343,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             clipboard(editor, "paste", copied);
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE + EXPRESSION);
+            expect(editor.value).to.equal(SOURCE + FORMULA);
             expect(cells(editor)[2].output.trim()).to.equal("56.25");
         });
 
@@ -352,7 +352,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             clipboard(editor, "paste", "Load: <% q %>");
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE.replace(EXPRESSION, "<!--% text %-->\nLoad: <% q %>"));
+            expect(editor.value).to.equal(SOURCE.replace(FORMULA, "<!--% text %-->\nLoad: <% q %>"));
             expect(cells(editor)[1].output).to.equal("Load: 12.5");
         });
 
@@ -363,9 +363,9 @@ describe("texl-editor", () => {
             key(editor, { key: "Delete" });
             key(editor, { key: "Enter", altKey: true, shiftKey: true });
             const changed = editor.value;
-            expect(changed).to.equal("<!--% markdown %-->\n" + EXPRESSION);
+            expect(changed).to.equal("<!--% markdown %-->\n" + FORMULA);
             expect(key(editor, { key: "z", ctrlKey: true }).defaultPrevented).to.be.true;
-            expect(editor.value).to.equal(EXPRESSION);
+            expect(editor.value).to.equal(FORMULA);
             key(editor, { key: "z", metaKey: true });
             await settle(editor);
             expect(editor.value).to.equal(SOURCE);
@@ -374,7 +374,7 @@ describe("texl-editor", () => {
             expect(editor.value).to.equal(SOURCE);
 
             key(editor, { key: "Z", ctrlKey: true, shiftKey: true });
-            expect(editor.value).to.equal(EXPRESSION);
+            expect(editor.value).to.equal(FORMULA);
             key(editor, { key: "y", ctrlKey: true });
             expect(editor.value).to.equal(changed);
             key(editor, { key: "y", ctrlKey: true });
@@ -620,7 +620,7 @@ describe("texl-editor", () => {
             editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
             editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", altKey: true }));
             await editor.updateComplete;
-            expect(cells(editor)[0].localName).to.equal("texl-cell-expression");
+            expect(cells(editor)[0].localName).to.equal("texl-cell-markdown");
             expect(noteCell(editor.querySelector("p"))).to.equal(cells(editor)[1]);
             await new Promise((resolve) => setTimeout(resolve));
             await editor.updateComplete;
@@ -629,7 +629,7 @@ describe("texl-editor", () => {
 
         it("numbers every line in the left margin, also the empty ones", async () => {
             const editor = await editorWith(SOURCE);
-            const numbers = [...editor.shadowRoot.querySelectorAll(".margin.left")].map((m) => m.textContent);
+            const numbers = [...editor.shadowRoot.querySelectorAll(".margin.left .line-number")].map((m) => m.textContent);
             expect(numbers).to.have.length(100);
             expect(numbers.slice(0, 3)).to.deep.equal(["1", "2", "3"]);
             expect(numbers.slice(8, 11)).to.deep.equal(["9", "10", "11"]);
@@ -650,6 +650,121 @@ describe("texl-editor", () => {
             const event = new KeyboardEvent("keydown", { key: "Delete", bubbles: true, composed: true, cancelable: true });
             note.dispatchEvent(event);
             expect(event.defaultPrevented).to.be.false;
+            expect(editor.value).to.equal(SOURCE);
+        });
+    });
+
+    describe("cell types", () => {
+        const key = (editor, key, options = {}) =>
+            editor.dispatchEvent(new KeyboardEvent("keydown", { key, cancelable: true, ...options }));
+        const typeButton = (editor, index) => editor.shadowRoot.querySelectorAll(".type-button")[index];
+        const menu = (editor) => editor.shadowRoot.querySelector(".type-menu");
+        const items = (editor) => [...menu(editor).querySelectorAll("li")];
+
+        it("shows the type of each cell in its left margin", async () => {
+            const editor = await editorWith(SOURCE + "<!--% chart %-->\ndata\n");
+            const titles = [0, 1, 2, 3].map((i) => typeButton(editor, i).title);
+            expect(titles).to.deep.equal(["Text", "Markdown", "chart (unknown type)", "Markdown"]);
+        });
+
+        it("opens the menu of types on a click on the icon, with the type checked", async () => {
+            const editor = await editorWith(SOURCE);
+            typeButton(editor, 1).click();
+            await editor.updateComplete;
+            expect(cells(editor)[1].selected).to.be.true;
+            expect(items(editor).map((li) => li.textContent.trim())).to.deep.equal(["Text", "Markdown"]);
+            expect(items(editor).map((li) => li.getAttribute("aria-checked"))).to.deep.equal(["false", "true"]);
+
+            typeButton(editor, 1).click();
+            await editor.updateComplete;
+            expect(menu(editor)).to.be.null;
+        });
+
+        it("changes the type on a click in the menu, keeping the source", async () => {
+            const editor = await editorWith(SOURCE);
+            typeButton(editor, 0).click();
+            await editor.updateComplete;
+            items(editor)[1].click();
+            await editor.rendered;
+            await editor.updateComplete;
+            expect(menu(editor)).to.be.null;
+            expect(cells(editor)[0].localName).to.equal("texl-cell-markdown");
+            expect(editor.value).to.equal(SOURCE.replace("<!--% text %-->", "<!--% markdown %-->"));
+        });
+
+        it("opens the menu with Mod+/ and picks a type with the arrows and Enter", async () => {
+            const editor = await editorWith(SOURCE);
+            key(editor, "/", { ctrlKey: true });
+            await editor.updateComplete;
+            expect(menu(editor)).to.exist;
+            key(editor, "ArrowDown");
+            await editor.updateComplete;
+            expect(items(editor)[1].classList.contains("active")).to.be.true;
+            key(editor, "ArrowDown");
+            await editor.updateComplete;
+            expect(items(editor)[0].classList.contains("active")).to.be.true;
+            key(editor, "ArrowUp");
+            key(editor, "Enter");
+            await editor.rendered;
+            await editor.updateComplete;
+            expect(menu(editor)).to.be.null;
+            expect(cells(editor)[0].localName).to.equal("texl-cell-markdown");
+        });
+
+        it("picks a type by its first letter, and closes with Escape without a change", async () => {
+            const editor = await editorWith(SOURCE);
+            key(editor, "/", { metaKey: true });
+            key(editor, "m");
+            await editor.updateComplete;
+            expect(items(editor)[1].classList.contains("active")).to.be.true;
+            key(editor, "Delete");
+            key(editor, "Escape");
+            await editor.updateComplete;
+            expect(menu(editor)).to.be.null;
+            expect(editor.value).to.equal(SOURCE);
+        });
+
+        it("closes the menu on a press outside it", async () => {
+            const editor = await editorWith(SOURCE);
+            typeButton(editor, 0).click();
+            await editor.updateComplete;
+            document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true }));
+            await editor.updateComplete;
+            expect(menu(editor)).to.be.null;
+        });
+
+        it("changes all the selected cells, and undoes the change", async () => {
+            const editor = await editorWith(SOURCE);
+            key(editor, "ArrowDown", { shiftKey: true });
+            key(editor, "/", { ctrlKey: true });
+            key(editor, "Home");
+            key(editor, "Enter");
+            await editor.rendered;
+            await editor.updateComplete;
+            expect(cells(editor).slice(0, 2).map((c) => c.localName)).to.deep.equal(["texl-cell-text", "texl-cell-text"]);
+            key(editor, "z", { ctrlKey: true });
+            await editor.updateComplete;
+            expect(editor.value).to.equal(SOURCE);
+        });
+
+        it("gives the first cell a marker when its type changes", async () => {
+            const editor = await editorWith("Hello\n");
+            key(editor, "/", { ctrlKey: true });
+            key(editor, "End");
+            key(editor, "Enter");
+            await editor.updateComplete;
+            expect(editor.value).to.equal("<!--% markdown %-->\nHello\n");
+        });
+
+        it("leaves an empty line below the document empty when its type changes", async () => {
+            const editor = await editorWith(SOURCE);
+            let changes = 0;
+            editor.addEventListener("change", () => changes++);
+            typeButton(editor, 3).click();
+            await editor.updateComplete;
+            items(editor)[0].click();
+            await editor.updateComplete;
+            expect(changes).to.equal(0);
             expect(editor.value).to.equal(SOURCE);
         });
     });

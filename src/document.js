@@ -16,7 +16,7 @@ const MARKER = /^<!--%(.*?)%-->[ \t]*$/;
 /**
  * A cell of a document.
  * @typedef {object} CellData
- * @property {string} type - The cell type, e.g. "text" or "expression".
+ * @property {string} type - The cell type, e.g. "text" or "markdown".
  * @property {string} texl - The Texl source of the cell body.
  * @property {boolean} [marker] - False for the leading cell without marker.
  */

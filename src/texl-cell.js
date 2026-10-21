@@ -17,6 +17,8 @@ import DOMPurify from "dompurify";
  * - `toTexl()`: produces the Texl source from the current input;
  * - `renderEditor()`: the editing widget (the base only shows a notice);
  * - `renderView()`, rarely: the base shows `output` as sanitised HTML.
+ * They also set the static `type`, and `label` and `icon`, which the
+ * editor shows in the left margin and in the menu of cell types.
  *
  * Reactive properties are declared in `static properties` and initialised in
  * the constructor (not as class fields, which would shadow Lit's accessors).
@@ -24,6 +26,12 @@ import DOMPurify from "dompurify";
 export class TexlCell extends LitElement {
     /** The cell type written in the marker. Subclasses set it. */
     static type = "";
+
+    /** The name of the type shown to the user; the type if empty. */
+    static label = "";
+
+    /** The type's icon: a Lit template of a 24×24 SVG drawn with strokes. */
+    static icon = html`<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>`;
 
     static properties = {
         texl: { type: String },

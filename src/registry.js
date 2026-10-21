@@ -28,6 +28,17 @@ export function cellTagName(type) {
     return types.get(type) ?? types.get(FALLBACK_TYPE);
 }
 
+/**
+ * Returns the class registered for a cell type, or undefined if the type is
+ * not registered.
+ * @param {string} type
+ * @returns {typeof import("./texl-cell.js").TexlCell | undefined}
+ */
+export function cellClass(type) {
+    const tagName = types.get(type);
+    return tagName && customElements.get(tagName);
+}
+
 /** Returns the registered cell types. */
 export function cellTypes() {
     return [...types.keys()];

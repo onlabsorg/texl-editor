@@ -111,12 +111,6 @@ function tagDecorations(doc) {
     return builder.finish();
 }
 
-function expressionDecorations(doc) {
-    const builder = new RangeSetBuilder();
-    addTokens(builder, doc.toString(), 0);
-    return builder.finish();
-}
-
 function highlighter(decorate) {
     return ViewPlugin.fromClass(
         class {
@@ -147,11 +141,6 @@ const theme = EditorView.baseTheme({
 /** Highlights the Swan expressions in the `<% %>` tags of a template. */
 export function swanTags() {
     return [highlighter(tagDecorations), theme];
-}
-
-/** Highlights the whole document as one Swan expression. */
-export function swanExpression() {
-    return [highlighter(expressionDecorations), theme];
 }
 
 /**

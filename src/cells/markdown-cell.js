@@ -33,6 +33,15 @@ const texlTags = {
 export class MarkdownCell extends TextCell {
     static type = "markdown";
 
+    static label = "Markdown";
+
+    static icon = html`<svg viewBox="0 0 24 24">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="M6 15V9l3 3 3-3v6" />
+        <path d="M17 9v6" />
+        <path d="m15 13 2 2 2-2" />
+    </svg>`;
+
     languageExtensions() {
         return [
             markdown({ extensions: [texlTags] }),

@@ -5,8 +5,9 @@ people who work in Word and Excel.
 
 A document is a vertical stack of **cells**. You move between cells and press
 Enter to edit one, as in a spreadsheet. Each cell has a type: text, Markdown
-text, an expression (like an Excel formula), and soon tables and charts. A
-cell turns what you type into plain Texl, and shows the rendered result live.
+text, and soon tables and charts. Formulas go inside the text between `<%`
+and `%>` (Ctrl+Space inserts them). A cell turns what you type into plain
+Texl, and shows the rendered result live.
 Cells can use the values and functions defined by the cells above them.
 
 The whole editor is a web component, `<texl-editor>`, so it can be embedded
@@ -31,7 +32,7 @@ npm run dev        # demo page at http://localhost:5173
     import "@onlabsorg/texl-editor";
 
     const editor = document.getElementById("editor");
-    editor.value = "<!--% text %-->\n# Hello\n<!--% expression %-->\n<% 6 * 7 %>\n";
+    editor.value = "<!--% markdown %-->\n# Hello\n<!--% markdown %-->\n6 × 7 = <% 6 * 7 %>\n";
     editor.addEventListener("change", () => console.log(editor.value));
 </script>
 ```
@@ -47,11 +48,11 @@ A document is a single Texl text file. Each cell starts with a marker line,
 no name: the editor numbers its lines 1, 2, 3, … in the left margin.
 
 ```texl
-<!--% text %-->
+<!--% markdown %-->
 # Beam check
 <% L = 6, q = 12.5 %>
-<!--% expression %-->
-<% q * L ^ 2 / 8 %>
+<!--% markdown %-->
+Midspan moment: <% q * L ^ 2 / 8 %> kNm
 ```
 
 The file is a normal Texl document: it renders with any Texl tool, without

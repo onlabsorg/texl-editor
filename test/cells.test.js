@@ -66,12 +66,6 @@ describe("Swan highlighting", () => {
             expect(root.querySelector(".cm-swan-number").textContent).to.equal("6");
         });
     }
-
-    it("highlights a whole expression cell as Swan", async () => {
-        const [cell] = await cellInEditMode("texl-cell-expression", "<% q * 2 %>\n");
-        expect(cell.shadowRoot.querySelector(".cm-swan-number").textContent).to.equal("2");
-        expect(cell.shadowRoot.querySelector(".cm-texl-tag")).to.be.null;
-    });
 });
 
 describe("Ctrl+Space", () => {
@@ -88,11 +82,5 @@ describe("Ctrl+Space", () => {
         ctrlSpace(view);
         expect(view.state.doc.toString()).to.equal("Span: <% L %>");
         expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).to.equal("L");
-    });
-
-    it("does nothing in an expression cell", async () => {
-        const [, view] = await cellInEditMode("texl-cell-expression", "<% q %>\n");
-        ctrlSpace(view);
-        expect(view.state.doc.toString()).to.equal(" q ");
     });
 });
