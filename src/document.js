@@ -2,11 +2,12 @@
 //
 // A document is one Texl text file. Each cell starts with a marker line:
 //
-//     <!--% name | type %-->
+//     <!--% type %-->
 //
 // followed by the cell body: the Texl source the cell produced, up to the
 // next marker line. Text before the first marker is a cell without marker
-// (type "text"), so a plain Texl file opens as a single text cell.
+// (type "text"), so a plain Texl file opens as a single text cell. Cells
+// have no name: they are known by their line number in the editor.
 //
 // The marker syntax is a draft: see docs/design.md.
 
@@ -16,28 +17,28 @@ const MARKER = /^<!--%(.*?)%-->[ \t]*$/;
  * A cell of a document.
  * @typedef {object} CellData
  * @property {string} type - The cell type, e.g. "text" or "expression".
- * @property {string} name - The cell name; may be empty.
  * @property {string} texl - The Texl source of the cell body.
  * @property {boolean} [marker] - False for the leading cell without marker.
  */
 
 /**
- * Parses the text of a marker (between `<!--%` and `%-->`).
+ * Parses the text of a marker (between `<!--%` and `%-->`). Older markers
+ * had a name before the type (`name | type`): the name is ignored.
  * @param {string} inner
- * @returns {{name: string, type: string}}
+ * @returns {{type: string}}
  */
 export function parseMarker(inner) {
-    const [name = "", type = ""] = inner.split("|").map((s) => s.trim());
-    return { name, type: type || "text" };
+    const type = inner.split("|").at(-1).trim();
+    return { type: type || "text" };
 }
 
 /**
  * Formats a cell marker line.
- * @param {{name?: string, type: string}} cell
+ * @param {{type: string}} cell
  * @returns {string}
  */
-export function formatMarker({ name = "", type }) {
-    return `<!--% ${name} | ${type} %-->`;
+export function formatMarker({ type }) {
+    return `<!--% ${type} %-->`;
 }
 
 /**
@@ -57,7 +58,7 @@ export function parseDocument(source) {
         const match = MARKER.exec(line.replace(/\r?\n$/, ""));
         if (match) {
             if (current || body.length > 0) {
-                current ??= { type: "text", name: "", marker: false };
+                current ??= { type: "text", marker: false };
                 flush();
             }
             current = parseMarker(match[1]);
@@ -66,7 +67,7 @@ export function parseDocument(source) {
         }
     }
     if (current || body.length > 0) {
-        current ??= { type: "text", name: "", marker: false };
+        current ??= { type: "text", marker: false };
         flush();
     }
     return cells;

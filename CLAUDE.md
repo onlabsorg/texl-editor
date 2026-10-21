@@ -18,9 +18,10 @@ that will embed it is private.
   is the only thing stored; to edit again, it reads its input back from that
   source.
 - **File format:** one Texl text file. Each cell starts with a marker line
-  `<!--% name | type %-->`; text before the first marker is a `text` cell
-  without marker. The file must stay a valid Texl document that renders
-  without the editor.
+  `<!--% type %-->`; text before the first marker is a `text` cell without
+  marker. Cells have no name: the editor shows their line number (1, 2, 3,
+  …) in the left margin. The file must stay a valid Texl document that
+  renders without the editor.
 - **Texl essentials** for this work are in `docs/texl-primer.md` (tags,
   shared top-down scope, Swan, imports, the `@onlabsorg/texl` JavaScript API).
   The full manual is <https://onlabsorg.github.io/texl/>. If the Texl repo is
@@ -31,8 +32,9 @@ that will embed it is private.
 
 Plain JavaScript (ES modules, JSDoc types, no TypeScript, no build step for
 the source) with Lit 3 web components. Texl runs in the browser as
-WebAssembly (`@onlabsorg/texl`). Markdown is rendered with `marked` and
-sanitised with DOMPurify. Text is edited with CodeMirror 6 (`@codemirror/*`).
+WebAssembly (`@onlabsorg/texl`). Cell output is sanitised with DOMPurify;
+Markdown cells convert it with `marked` first. Text is edited with
+CodeMirror 6 (`@codemirror/*`).
 
 ```bash
 npm install
@@ -58,8 +60,11 @@ is managed by nvm (LTS as default); non-interactive shells must run
 - `src/texl-cell.js` — `TexlCell`, the base class of all cells: modes,
   layout, and the commit protocol (`cell-change` with `{texl}`, then
   `cell-exit`). Subclasses override `fromTexl`, `toTexl`, `renderEditor`;
-  the base `renderView` (output as sanitised Markdown) rarely needs it.
-- `src/cells/` — built-in cell types (`text`, `expression`).
+  the base `renderView` (output as sanitised HTML) rarely needs it.
+  Text-based cells override `languageExtensions()` of `TextCell`.
+- `src/cells/` — built-in cell types (`text`, `markdown`, `expression`).
+- `src/swan.js` — Swan highlighting for the cell editors (tags or whole
+  input) and the command that inserts a `<%  %>` tag.
 - `src/registry.js` — `registerCell(CellClass)` maps a cell type to its
   custom element `texl-cell-<type>`; unknown types fall back to `text`.
 - `src/document.js` — parse a file into cells and serialise them back

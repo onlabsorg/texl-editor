@@ -4,12 +4,12 @@ import { parseDocument, serializeDocument } from "./document.js";
 import { cellTagName } from "./registry.js";
 import { createEngine } from "./engine.js";
 
-/** What an empty line below the document shows: an empty text cell. */
-const EMPTY_LINE = { type: "text", name: "", texl: "" };
+/** What an empty line below the document shows: an empty markdown cell. */
+const EMPTY_LINE = { type: "markdown", texl: "" };
 
-/** Whether a cell looks like an empty line: an empty text cell without name. */
+/** Whether a cell looks like an empty line: an empty markdown or text cell. */
 function isEmptyLine(cell) {
-    return cell.type === "text" && !cell.name && !cell.texl;
+    return (cell.type === "markdown" || cell.type === "text") && !cell.texl;
 }
 
 /** The most changes that can be undone. */
@@ -50,9 +50,21 @@ function isMod(e) {
  * sheet has `rows` lines (100 by default), or more if the document has more
  * cells. Lines below the last cell are empty and not part of the document;
  * writing in one adds it to the document, together with empty cells for the
- * lines above it. Empty text cells without name at the end of the document
- * are dropped, as they look the same as the empty lines. The editor scrolls its own lines: give it a height and
- * it shows a scrollbar and keeps the selected line in view.
+ * lines above it. Empty markdown or text cells at the end of the document
+ * are dropped, as they look the same as the empty lines. The editor scrolls
+ * its own lines: give it a height and it shows a scrollbar and keeps the
+ * selected line in view.
+ *
+ * Two vertical lines (`--texl-margin-line`) rule a margin on each side of
+ * the cells, as on legal paper, both `--texl-margin` wide. The left margin
+ * (part `left-margin`) is for the editor's own objects about each line; it
+ * shows the line number, 1, 2, 3, ..., also on the empty lines below the
+ * document, as in Excel. Cells have no name: they are known by their line
+ * number. The right margin (part `right-margin`) is for comments on a line:
+ * each child of the editor with `slot` set to a line number is a comment on
+ * that line, and the line's right margin shows a comment icon with their
+ * number. The comments themselves are not shown yet. Keys and clipboard
+ * events from these children are left to them.
  *
  * After every change the whole document is rendered again, cell by cell, in
  * one Texl context, so each cell sees the names bound by the cells above.
@@ -66,6 +78,7 @@ export class TexlEditor extends LitElement {
         _anchor: { state: true },
         _selected: { state: true },
         _editing: { state: true },
+        _comments: { state: true },
     };
 
     static styles = css`
@@ -75,6 +88,56 @@ export class TexlEditor extends LitElement {
             outline: none;
             background: var(--texl-paper, #fff);
             border-top: 1px solid var(--texl-line, #e4e6ea);
+        }
+        /* One row per line: left margin, cell, right margin */
+        .sheet {
+            display: grid;
+            grid-template-columns:
+                var(--texl-margin, 6rem)
+                minmax(0, 1fr)
+                var(--texl-margin, 6rem);
+        }
+        .margin {
+            box-sizing: border-box;
+            min-width: 0;
+            border-bottom: 1px solid var(--texl-line, #e4e6ea);
+        }
+        .margin.left {
+            border-right: 1px solid var(--texl-margin-line, #7aa2f0);
+            padding: 0.0625rem 0.5rem 0.25rem;
+            text-align: right;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.625rem;
+            font-weight: normal;
+            line-height: 1.5rem;
+            /* The line number stays in the background, clearer on the
+               selected lines or under the mouse */
+            color: var(--texl-line-number, #c4c8cf);
+            user-select: none;
+        }
+        .margin.left.selected,
+        .margin.left:hover {
+            color: var(--texl-line-number-active, #9aa0aa);
+        }
+        .margin.right {
+            border-left: 1px solid var(--texl-margin-line, #7aa2f0);
+            padding: 0.25rem 0.5rem;
+        }
+        /* The comments are counted, not shown */
+        .comments {
+            display: none;
+        }
+        .comment-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            height: 1.5rem;
+            font-size: 0.8125rem;
+            color: var(--texl-comment, #b7791f);
+        }
+        .comment-count svg {
+            width: 1rem;
+            height: 1rem;
         }
     `;
 
@@ -87,6 +150,8 @@ export class TexlEditor extends LitElement {
         this._anchor = 0;
         this._selected = 0;
         this._editing = -1;
+        /** The number of comments in each line's right margin, by line. */
+        this._comments = [];
         this._engine = null;
         this._generation = 0;
         /** Earlier and undone states, as `{cells, anchor, selected}`. */
@@ -130,7 +195,8 @@ export class TexlEditor extends LitElement {
     }
 
     _onKeyDown(e) {
-        if (e.defaultPrevented) return;
+        // Keys from the margin content (children of the editor) are theirs
+        if (e.defaultPrevented || e.target !== this) return;
         if (this._editing >= 0) {
             const commit = e.key === "Enter" && (e.ctrlKey || e.metaKey);
             if (commit || e.key === "Escape") {
@@ -175,7 +241,8 @@ export class TexlEditor extends LitElement {
     /** Copies, cuts or pastes the selected cells, outside edit mode. */
     _onClipboard(e) {
         // Leave text selected with the mouse to the browser
-        if (this._editing >= 0 || !e.clipboardData || document.getSelection()?.toString()) return;
+        if (this._editing >= 0 || !e.clipboardData || e.target !== this || document.getSelection()?.toString())
+            return;
         e.preventDefault();
         const [first, last] = this._range();
         if (e.type === "paste") {
@@ -286,18 +353,39 @@ export class TexlEditor extends LitElement {
         if (changed.has("_selected")) this._cellElement(this._selected)?.scrollIntoView({ block: "nearest" });
     }
 
+    /** Counts the comments that `slot`, in the right margin of line `index`, gets. */
+    _onSlotChange(index, slot) {
+        const count = slot.assignedElements().length;
+        if (this._comments[index] === count) return;
+        const comments = [...this._comments];
+        comments[index] = count;
+        this._comments = comments;
+    }
+
+    /** A comment icon with `count`, or nothing if there are no comments. */
+    _renderCommentCount(count) {
+        if (!count) return "";
+        const label = count === 1 ? "1 comment" : `${count} comments`;
+        return html`<span class="comment-count" title=${label} aria-label=${label}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>${count}
+        </span>`;
+    }
+
     _cellElement(index) {
         return this.renderRoot.querySelector(`[data-index="${index}"]`);
     }
 
     render() {
         const [first, last] = this._range();
-        return Array.from({ length: this._rowCount() }, (_, i) => {
+        const rows = Array.from({ length: this._rowCount() }, (_, i) => {
             const cell = this._cells[i] ?? EMPTY_LINE;
             const tag = unsafeStatic(cellTagName(cell.type));
-            return html`<${tag}
+            return html`<div class="margin left ${i >= first && i <= last ? "selected" : ""}" part="left-margin" @click=${(e) => this._select(i, e.shiftKey)}>${i + 1}</div>
+                <${tag}
                 data-index=${i}
-                .name=${cell.name}
                 .texl=${cell.texl}
                 .output=${this._outputs[i] ?? ""}
                 .mode=${i === this._editing ? "edit" : "render"}
@@ -306,7 +394,14 @@ export class TexlEditor extends LitElement {
                 @dblclick=${() => this._edit(i)}
                 @cell-change=${(e) => this._onCellChange(i, e.detail.texl)}
                 @cell-exit=${() => this._onCellExit()}
-            ></${tag}>`;
+            ></${tag}>
+                <div class="margin right" part="right-margin">
+                    ${this._renderCommentCount(this._comments[i])}
+                    <div class="comments">
+                        <slot name=${i + 1} @slotchange=${(e) => this._onSlotChange(i, e.target)}></slot>
+                    </div>
+                </div>`;
         });
+        return html`<div class="sheet">${rows}</div>`;
     }
 }
