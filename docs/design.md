@@ -26,8 +26,10 @@ content needs it.
 - Two vertical blue lines (`--texl-margin-line`) rule a **margin** on each
   side of the cells, as on legal paper. The cells fill the middle column.
   - The **left margin** is for the editor's own objects about each line.
-    It shows the line number; **(open)** other content, such as a menu for
-    the cell type. A click in it selects the line.
+    It shows the line number and, before it, a discreet icon of the cell's
+    type (on the empty lines only under the mouse or when selected). A
+    click on the icon opens the menu of cell types; a click elsewhere in
+    the margin selects the line.
   - The **right margin** is for comments on a line. They belong to the page
     that embeds the editor (later the platform), not to the document: each
     child of `<texl-editor>` with `slot` set to a line number is a comment
@@ -67,7 +69,6 @@ the editor.
 |-------------|----------------------------------------------|---------------|
 | `text`      | Texl template shown as HTML; Swan highlighted in `<% %>` tags, Ctrl+Space inserts one | Boilerplate |
 | `markdown`  | `text` with Markdown: highlighted in the editor, turned into HTML for display | Boilerplate |
-| `expression` | A Swan expression without `<% %>`, as an Excel formula; uses the `text` editor, all Swan | Boilerplate |
 | `table`     | A grid where each cell is edited on its own: a spreadsheet inside the document | Planned (MVP) |
 | `chart`     | Shows a chart; edits as a table of values    | Planned       |
 | `figure`    | A parametric figure                          | Idea          |
@@ -76,6 +77,14 @@ the editor.
 
 Other formats for raw templates (e.g. LaTeX) are possible later as cell
 types built on `text`, as `markdown` is.
+
+**Formulas** are `<% %>` tags inside a `text` or `markdown` cell, inserted
+with Ctrl+Space; there is no separate formula cell (decided 2026-10-21,
+parent D11). An `expression` cell, which wrapped its input in a tag behind
+the user's back, was dropped: a tag ends at the first `%>`, so typing `%>`
+or `<%` split it into several formulas, and changing a cell with tags to
+`expression` had no sound conversion. Files with `<!--% expression %-->`
+still open, as `text` with their type kept, like any unknown type.
 
 ## File format
 
@@ -127,7 +136,7 @@ components.
 ```
 <texl-editor>                     the app: document, navigation, rendering
   ├─ <texl-cell-text>             one element per cell, by type
-  ├─ <texl-cell-expression>
+  ├─ <texl-cell-markdown>
   └─ <texl-cell-…>                custom cells from third parties
         all extend TexlCell       base: modes, layout, commit protocol
 ```
@@ -145,9 +154,7 @@ components.
   highlighting inside `<% %>` tags and Ctrl+Space to insert a tag
   (`src/swan.js`). `MarkdownCell` extends it with Markdown highlighting
   (tags stay Swan, Markdown does not look inside them) and renders its
-  output as Markdown. `ExpressionCell` extends it, highlights the whole
-  input as Swan, and only wraps its input in `<% %>` (`toTexl`) and strips
-  the tag again (`fromTexl`).
+  output as Markdown.
 - Swan highlighting is a layer of decorations over the editor's language,
   as Texl finds its tags before Markdown is read: a tag is highlighted
   wherever it is, also in a code block.
@@ -196,10 +203,19 @@ components.
   - Only the first cell may go without marker: a cell without one that is
     no longer first gets one. Empty `markdown` or `text` cells at the end of
     the document are dropped, as they look like the empty lines below it.
-- **(open)** How to change a cell's type (key, menu or both).
-- **(open)** Expression cells: does the cell bind a variable
-  (`M = q * L ^ 2 / 8`), and is the result shown as "M = 56.25" (Mathcad
-  style)? Units?
+- Changing a cell's type: the icon in the left margin, or Mod+/ (as in
+  Notion), opens a small menu of the registered types, with the current one
+  checked. ↑/↓ (or a type's first letter) pick a type, Enter or a click
+  changes all selected cells to it, Escape or a click outside closes the
+  menu. The cell keeps its Texl source: only how it is edited and shown
+  changes, so the change is lossless and Mod+Z undoes it. A first cell
+  without marker gets one; empty lines below the document that change type
+  are added to it, unless they stay empty `markdown` or `text` lines. Cell
+  classes give the menu their `label` and `icon`.
+- **(open)** Formulas: an Excel-like `=` in a cell (`=q * L ^ 2 / 8` stored
+  as a cell that is exactly one tag, shown as `= …` while editing), formula
+  chips in the rich-text cell, Mathcad-style display ("M = 56.25"), units.
+  Any of these must keep the formula a plain tag in the source.
 - **(open)** Tables: storage as Swan data plus a render call; formulas inside
   table cells (column formulas vs A1 references); which renderer functions
   the editor provides to documents, and how they stay available when the file
