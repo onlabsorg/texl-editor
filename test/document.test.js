@@ -1,5 +1,5 @@
 import { expect } from "@open-wc/testing";
-import { parseDocument, serializeDocument, parseMarker, formatMarker } from "../src/document.js";
+import { parseDocument, serializeDocument, parseMarker, formatMarker, cellComments } from "../src/document.js";
 
 describe("parseMarker", () => {
     it("reads the type", () => {
@@ -47,6 +47,22 @@ describe("parseDocument", () => {
     it("ignores ordinary HTML comments", () => {
         const cells = parseDocument("<!-- note -->\ntext\n");
         expect(cells).to.have.length(1);
+    });
+});
+
+describe("cellComments", () => {
+    it("lists the text of every HTML comment in a cell, trimmed", () => {
+        const texl = "<!-- first -->\nText <!--second--> and <% x %>\n<!--\n  third,\n  on lines\n-->\n";
+        expect(cellComments(texl)).to.deep.equal(["first", "second", "third,\n  on lines"]);
+    });
+
+    it("finds none in a cell without comments", () => {
+        expect(cellComments("Text <% x %>\n")).to.deep.equal([]);
+    });
+
+    it("never counts the cell's marker", () => {
+        const [cell] = parseDocument("<!--% markdown %-->\nText <!-- note -->\n");
+        expect(cellComments(cell.texl)).to.deep.equal(["note"]);
     });
 });
 

@@ -30,14 +30,18 @@ content needs it.
     type (on the empty lines only under the mouse or when selected). A
     click on the icon opens the menu of cell types; a click elsewhere in
     the margin selects the line.
-  - The **right margin** is for comments on a line. They belong to the page
-    that embeds the editor (later the platform), not to the document: each
-    child of `<texl-editor>` with `slot` set to a line number is a comment
-    on that line. The line's right margin shows a comment icon with their
-    number. Keys and clipboard events from these children are left to them.
-    **(open)** Comments stay on their line number, so they do not follow a
-    cell that is moved, or pushed down by an inserted one.
-    **(open)** How to show the comments themselves.
+  - The **right margin** is for the comments of a cell. They live in the
+    document: every HTML comment (`<!-- ... -->`) in a cell's source,
+    except its marker, is a comment of that cell, so comments follow the
+    cell when it moves. To the editor a comment is just a string; a host
+    may give it a structure (author, date, thread) with a syntax of its
+    own. The right margin shows a comment icon with their number; a click
+    on it fires `comments-click` with the line number and the comments as
+    a list of strings; Shift+F2 does the same for the selected line, also
+    when it has none. Showing them is up to the page (the demo lists them
+    beside the sheet until another line is selected: the editor fires
+    `selection-change` with the selected line).
+    **(open)** How comments are added and edited.
   - Both margins are `--texl-margin` wide (6rem); they are the CSS parts
     `left-margin` and `right-margin`.
     **(open)** The layout on narrow screens.
@@ -60,8 +64,9 @@ content needs it.
   them, because Texl evaluates a document top to bottom in one scope. Edit
   mode should help the user reference those names (autocompletion).
 
-Revisions, comments, releases and permissions belong to the platform, not to
-the editor.
+Revisions, releases and permissions belong to the platform, not to the
+editor. Comments are stored in the document (see above); how they are
+shown, and any structure they have, is up to the platform.
 
 ### Cell types
 
@@ -103,7 +108,8 @@ line, an HTML comment that the editor recognises:
   everything up to the next marker line.
 - Text before the first marker is a `text` cell without marker, so any plain
   Texl file opens in the editor.
-- Ordinary HTML comments (`<!-- ... -->`) are not markers.
+- Ordinary HTML comments (`<!-- ... -->`) are not markers: they are the
+  comments of the cell they are in.
 - Unknown cell types are shown as `text` and their type is kept on save.
 - The file renders with any Texl host (CLI, Python, `texl.import`) without
   the editor. The markers pass through rendering as HTML comments: invisible

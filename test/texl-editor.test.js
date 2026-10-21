@@ -567,24 +567,21 @@ describe("texl-editor", () => {
     });
 
     describe("margins", () => {
-        async function editorWithNotes(source) {
-            const editor = await fixture(html`<texl-editor>
-                <p slot="2">On line 2</p>
-                <p slot="2">Also on line 2</p>
-                <p slot="nowhere">On no line</p>
-            </texl-editor>`);
-            editor.value = source;
-            await editor.rendered;
-            await editor.updateComplete;
-            return editor;
-        }
-        // The cell whose right margin gets `note`
-        const noteCell = (note) => note.assignedSlot?.closest(".margin").previousElementSibling;
+        const NOTES = `<!--% markdown %-->
+First line
+<!--% markdown %-->
+Second line <!-- On line 2 -->
+<!-- Also on line 2 -->
+<!--% text %-->
+Third line
+`;
         // The comment count shown in the right margin of each of the first lines
         const counts = (editor) =>
             [...editor.shadowRoot.querySelectorAll(".margin.right")]
                 .slice(0, 3)
                 .map((margin) => margin.querySelector(".comment-count")?.textContent.trim() ?? "");
+        const countButton = (editor, index) =>
+            editor.shadowRoot.querySelectorAll(".margin.right")[index].querySelector(".comment-count");
 
         it("rules a left and a right margin on every line", async () => {
             const editor = await editorWith(SOURCE);
@@ -593,38 +590,58 @@ describe("texl-editor", () => {
             expect(editor.shadowRoot.querySelectorAll(".margin.right")).to.have.length(lines);
         });
 
-        it("shows the children of the editor in the right margin of the line they number", async () => {
-            const editor = await editorWithNotes(SOURCE);
-            const [first, second, orphan] = editor.querySelectorAll("p");
-            expect(noteCell(first)).to.equal(cells(editor)[1]);
-            expect(noteCell(second)).to.equal(cells(editor)[1]);
-            expect(orphan.assignedSlot).to.be.null;
-        });
-
-        it("shows the number of comments on each line", async () => {
-            const editor = await editorWithNotes(SOURCE);
-            await editor.updateComplete;
+        it("shows the number of comments in each cell's source", async () => {
+            const editor = await editorWith(NOTES);
             expect(counts(editor)).to.deep.equal(["", "2", ""]);
-
-            const note = document.createElement("p");
-            note.slot = "1";
-            editor.append(note);
-            editor.querySelector("p").remove();
-            await new Promise((resolve) => setTimeout(resolve));
-            await editor.updateComplete;
-            expect(counts(editor)).to.deep.equal(["1", "1", ""]);
         });
 
-        it("keeps the comments on their line when cells move", async () => {
-            const editor = await editorWithNotes(SOURCE);
+        it("keeps the comments with their cell when it moves", async () => {
+            const editor = await editorWith(NOTES);
             editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
             editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", altKey: true }));
             await editor.updateComplete;
-            expect(cells(editor)[0].localName).to.equal("texl-cell-markdown");
-            expect(noteCell(editor.querySelector("p"))).to.equal(cells(editor)[1]);
-            await new Promise((resolve) => setTimeout(resolve));
+            expect(counts(editor)).to.deep.equal(["2", "", ""]);
+        });
+
+        it("reports a line's comments on a click on their icon", async () => {
+            const editor = await editorWith(NOTES);
+            let detail = null;
+            editor.addEventListener("comments-click", (e) => (detail = e.detail));
+            countButton(editor, 1).click();
             await editor.updateComplete;
-            expect(counts(editor)).to.deep.equal(["", "2", ""]);
+            expect(detail).to.deep.equal({ line: 2, comments: ["On line 2", "Also on line 2"] });
+            expect(cells(editor)[1].selected).to.be.true;
+        });
+
+        it("reports the selected line's comments on Shift+F2", async () => {
+            const editor = await editorWith(NOTES);
+            const details = [];
+            editor.addEventListener("comments-click", (e) => details.push(e.detail));
+            const key = (options) =>
+                editor.dispatchEvent(new KeyboardEvent("keydown", { cancelable: true, ...options }));
+            key({ key: "ArrowDown" });
+            key({ key: "F2", shiftKey: true });
+            key({ key: "ArrowDown" });
+            key({ key: "F2", shiftKey: true });
+            await editor.updateComplete;
+            expect(details).to.deep.equal([
+                { line: 2, comments: ["On line 2", "Also on line 2"] },
+                { line: 3, comments: [] },
+            ]);
+            expect(cells(editor).some((cell) => cell.mode === "edit")).to.be.false;
+        });
+
+        it("reports the selected line when another one is selected", async () => {
+            const editor = await editorWith(NOTES);
+            const lines = [];
+            editor.addEventListener("selection-change", (e) => lines.push(e.detail.line));
+            editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+            await editor.updateComplete;
+            editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", shiftKey: true }));
+            await editor.updateComplete;
+            editor.dispatchEvent(new KeyboardEvent("keydown", { key: "F2", shiftKey: true }));
+            await editor.updateComplete;
+            expect(lines).to.deep.equal([2, 3]);
         });
 
         it("numbers every line in the left margin, also the empty ones", async () => {
@@ -642,15 +659,6 @@ describe("texl-editor", () => {
             await editor.updateComplete;
             expect(cells(editor)[1].selected).to.be.true;
             expect(cells(editor)[0].selected).to.be.false;
-        });
-
-        it("leaves keys from the margin content to it", async () => {
-            const editor = await editorWithNotes(SOURCE);
-            const note = editor.querySelector("p");
-            const event = new KeyboardEvent("keydown", { key: "Delete", bubbles: true, composed: true, cancelable: true });
-            note.dispatchEvent(event);
-            expect(event.defaultPrevented).to.be.false;
-            expect(editor.value).to.equal(SOURCE);
         });
     });
 

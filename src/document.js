@@ -74,6 +74,17 @@ export function parseDocument(source) {
 }
 
 /**
+ * The comments of a cell: the text of every HTML comment (`<!-- ... -->`)
+ * in its body, trimmed. Markers are not in the body, so they never count.
+ * A comment has no structure: hosts may give it one with their own syntax.
+ * @param {string} texl - The Texl source of the cell body.
+ * @returns {string[]}
+ */
+export function cellComments(texl) {
+    return [...texl.matchAll(/<!--([\s\S]*?)-->/g)].map((match) => match[1].trim());
+}
+
+/**
  * Joins cells into a document.
  * @param {CellData[]} cells
  * @returns {string}

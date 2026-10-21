@@ -1,6 +1,6 @@
 import { LitElement, css } from "lit";
 import { html, unsafeStatic } from "lit/static-html.js";
-import { parseDocument, serializeDocument } from "./document.js";
+import { parseDocument, serializeDocument, cellComments } from "./document.js";
 import { cellTagName, cellClass, cellTypes } from "./registry.js";
 import { createEngine } from "./engine.js";
 import { TexlCell } from "./texl-cell.js";
@@ -54,7 +54,9 @@ function isMod(e) {
  * - Mod+/ opens the menu of cell types for the selected cells, as the icon
  *   of a cell's type in the left margin does on a click. In the menu,
  *   ArrowUp/ArrowDown (or a type's first letter) pick a type, Enter changes
- *   the selected cells to it, Escape closes the menu.
+ *   the selected cells to it, Escape closes the menu;
+ * - Shift+F2 reports the comments of the selected line, as a click on its
+ *   comment icon does (below), also when it has none.
  *
  * The editor looks like a sheet of lined paper: each line is a cell. The
  * sheet has `rows` lines (100 by default), or more if the document has more
@@ -73,11 +75,13 @@ function isMod(e) {
  * number. Before the number, a discreet icon shows the cell's type (on the
  * empty lines, only under the mouse or when selected); a click on it opens
  * the menu of cell types. Changing the type keeps the cell's Texl source.
- * The right margin (part `right-margin`) is for comments on a line:
- * each child of the editor with `slot` set to a line number is a comment on
- * that line, and the line's right margin shows a comment icon with their
- * number. The comments themselves are not shown yet. Keys and clipboard
- * events from these children are left to them.
+ * The right margin (part `right-margin`) is for the comments of a cell:
+ * every HTML comment (`<!-- ... -->`) in its Texl source, the marker apart.
+ * The margin shows a comment icon with their number; a click on it fires
+ * `comments-click`, whose `detail` has the line number (`line`, from 1)
+ * and the comments as strings (`comments`). Showing them is up to the page.
+ * When another line is selected, the editor fires `selection-change`, whose
+ * `detail` has the selected line number (`line`, from 1).
  *
  * After every change the whole document is rendered again, cell by cell, in
  * one Texl context, so each cell sees the names bound by the cells above.
@@ -91,7 +95,6 @@ export class TexlEditor extends LitElement {
         _anchor: { state: true },
         _selected: { state: true },
         _editing: { state: true },
-        _comments: { state: true },
         _menu: { state: true },
         _menuItem: { state: true },
     };
@@ -235,17 +238,22 @@ export class TexlEditor extends LitElement {
             border-left: 1px solid var(--texl-margin-line, #7aa2f0);
             padding: 0.25rem 0.5rem;
         }
-        /* The comments are counted, not shown */
-        .comments {
-            display: none;
-        }
         .comment-count {
             display: inline-flex;
             align-items: center;
             gap: 0.25rem;
             height: 1.5rem;
+            padding: 0 0.25rem;
+            border: none;
+            border-radius: 4px;
+            background: none;
+            font: inherit;
             font-size: 0.8125rem;
             color: var(--texl-comment, #b7791f);
+            cursor: pointer;
+        }
+        .comment-count:hover {
+            background: var(--texl-hover-bg, rgb(15 23 42 / 0.06));
         }
         .comment-count svg {
             width: 1rem;
@@ -262,8 +270,6 @@ export class TexlEditor extends LitElement {
         this._anchor = 0;
         this._selected = 0;
         this._editing = -1;
-        /** The number of comments in each line's right margin, by line. */
-        this._comments = [];
         this._engine = null;
         this._generation = 0;
         /** Earlier and undone states, as `{cells, anchor, selected}`. */
@@ -324,7 +330,7 @@ export class TexlEditor extends LitElement {
     }
 
     _onKeyDown(e) {
-        // Keys from the margin content (children of the editor) are theirs
+        // Keys from children of the editor (put there by the page) are theirs
         if (e.defaultPrevented || e.target !== this) return;
         if (this._menu >= 0) {
             this._onMenuKeyDown(e);
@@ -341,6 +347,8 @@ export class TexlEditor extends LitElement {
         const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
         if (step && e.altKey && !hasModifier(e, "altKey")) this._moveCells(step);
         else if (step && !hasModifier(e, "shiftKey")) this._select(this._selected + step, e.shiftKey);
+        else if (e.key === "F2" && e.shiftKey && !hasModifier(e, "shiftKey"))
+            this._onCommentsClick(this._selected, cellComments((this._cells[this._selected] ?? EMPTY_LINE).texl));
         else if (e.key === "Enter" && e.altKey && !hasModifier(e, "altKey", "shiftKey"))
             this._insertCell(e.shiftKey ? "above" : "below");
         else if ((e.key === "Enter" || e.key === "F2") && this._rowCount() > 0) this._edit(this._selected);
@@ -553,29 +561,38 @@ export class TexlEditor extends LitElement {
 
     updated(changed) {
         // Keep the selected line in view while moving with the keys
-        if (changed.has("_selected")) this._cellElement(this._selected)?.scrollIntoView({ block: "nearest" });
+        if (changed.has("_selected")) {
+            this._cellElement(this._selected)?.scrollIntoView({ block: "nearest" });
+            const line = this._selected + 1;
+            this.dispatchEvent(new CustomEvent("selection-change", { detail: { line }, bubbles: true, composed: true }));
+        }
         if (changed.has("_menu")) this.renderRoot.querySelector(".type-menu")?.scrollIntoView({ block: "nearest" });
     }
 
-    /** Counts the comments that `slot`, in the right margin of line `index`, gets. */
-    _onSlotChange(index, slot) {
-        const count = slot.assignedElements().length;
-        if (this._comments[index] === count) return;
-        const comments = [...this._comments];
-        comments[index] = count;
-        this._comments = comments;
+    /** Selects line `index` and reports its `comments` with `comments-click`. */
+    _onCommentsClick(index, comments) {
+        this._select(index);
+        this.focus();
+        this.dispatchEvent(
+            new CustomEvent("comments-click", { detail: { line: index + 1, comments }, bubbles: true, composed: true }),
+        );
     }
 
-    /** A comment icon with `count`, or nothing if there are no comments. */
-    _renderCommentCount(count) {
-        if (!count) return "";
-        const label = count === 1 ? "1 comment" : `${count} comments`;
-        return html`<span class="comment-count" title=${label} aria-label=${label}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>${count}
-        </span>`;
+    /** A comment icon with the number of `comments` of line `index`, or nothing. */
+    _renderCommentCount(index, comments) {
+        if (comments.length === 0) return "";
+        const label = comments.length === 1 ? "1 comment" : `${comments.length} comments`;
+        return html`<button
+            class="comment-count"
+            type="button"
+            tabindex="-1"
+            title=${label}
+            aria-label=${label}
+            @mousedown=${(e) => e.preventDefault()}
+            @click=${() => this._onCommentsClick(index, comments)}
+        >
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>${comments.length}
+        </button>`;
     }
 
     /** The icon of line `index`'s cell type, which opens the menu of types. */
@@ -649,10 +666,7 @@ export class TexlEditor extends LitElement {
                 @cell-exit=${() => this._onCellExit()}
             ></${tag}>
                 <div class="margin right" part="right-margin">
-                    ${this._renderCommentCount(this._comments[i])}
-                    <div class="comments">
-                        <slot name=${i + 1} @slotchange=${(e) => this._onSlotChange(i, e.target)}></slot>
-                    </div>
+                    ${this._renderCommentCount(i, cellComments(cell.texl))}
                 </div>`;
         });
         return html`<div class="sheet">${rows}</div>`;
