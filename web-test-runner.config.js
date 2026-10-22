@@ -5,8 +5,11 @@ import { chromeLauncher } from "@web/test-runner-chrome";
 export default {
     files: "test/**/*.test.js",
     nodeResolve: true,
-    browsers: [chromeLauncher({ launchOptions: { headless: true } })],
-    // The first test pages wait for Chrome to launch, which is slow on a
-    // fresh CI runner (over the default 30 s on GitHub Actions)
-    browserStartTimeout: 120000,
+    // Chrome's first launch on a fresh CI runner can take over 30 s, the
+    // default of both Puppeteer's launch timeout and the runner's timeout for
+    // the first test pages, which wait for the launch
+    browsers: [
+        chromeLauncher({ launchOptions: { headless: true, timeout: 120000 } }),
+    ],
+    browserStartTimeout: 180000,
 };
