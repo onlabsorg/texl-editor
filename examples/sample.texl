@@ -1,10 +1,10 @@
-<!--% markdown %-->
+<!--{ bek4 : markdown }-->
 # Beam check
 
 A simply supported steel beam under a uniform load. The section properties
 come from the library [steel.texl](examples/steel.texl).
 <% texl.import("examples/steel.texl") ~> (lib -> bind "steel" lib.data) %>
-<!--% markdown %-->
+<!--{ lod2 : markdown }-->
 ## Input
 
 <%
@@ -16,8 +16,8 @@ section = steel.IPE.IPE300
 - Span: <% L %> m
 - Section: <% section.name %>, steel <% steel.grade.name %>
 - Loads: g<sub>k</sub> = <% gk %> kN/m, q<sub>k</sub> = <% qk %> kN/m
-<!-- Anna: span and loads from the client's brief, rev. B. -->
-<!--% markdown %-->
+<!--[ Anna: span and loads from the client's brief, rev. B. ]-->
+<!--{ saf7 : markdown }-->
 ## Design load
 
 <%
@@ -28,8 +28,8 @@ MEd = qd * L ^ 2 / 8
 The self-weight is <% math.round (gs * 100) / 100 %> kN/m, so the design
 load is q<sub>d</sub> = <% math.round (qd * 100) / 100 %> kN/m and the
 midspan moment is **M<sub>Ed</sub> = <% math.round (MEd * 10) / 10 %> kNm**.
-<!-- Marco: partial factors from EN 1990, table A1.2(B). -->
-<!--% markdown %-->
+<!--[ Marco: partial factors from EN 1990, table A1.2(B). ]-->
+<!--{ siz5 : markdown }-->
 ## Bending check
 
 <%
@@ -44,5 +44,5 @@ u = sigma / fyd
 | Utilisation      | <% math.round (u * 100) %> %    |
 
 The <% section.name %> is <% u <= 1 ? "**adequate**" ; "**not adequate**" %>.
-<!-- Marco: fine for the report. -->
-<!-- Anna: try an IPE 270 too. -->
+<!--[ Marco: fine for the report. ]-->
+<!--[ Anna: try an IPE 270 too. ]-->

@@ -1,6 +1,6 @@
 import { LitElement, css } from "lit";
 import { html, unsafeStatic } from "lit/static-html.js";
-import { parseDocument, serializeDocument, cellComments } from "./document.js";
+import { parseDocument, serializeDocument, cellComments, nameCells, nameConflicts } from "./document.js";
 import { cellTagName, cellClass, cellTypes } from "./registry.js";
 import { createEngine } from "./engine.js";
 import { TexlCell } from "./texl-cell.js";
@@ -71,17 +71,25 @@ function isMod(e) {
  * the cells, as on legal paper, both `--texl-margin` wide. The left margin
  * (part `left-margin`) is for the editor's own objects about each line; it
  * shows the line number, 1, 2, 3, ..., also on the empty lines below the
- * document, as in Excel. Cells have no name: they are known by their line
- * number. Before the number, a discreet icon shows the cell's type (on the
+ * document, as in Excel. The user knows cells by their line number; their
+ * names, in the markers, are not shown (see below). Before the number, a discreet icon shows the cell's type (on the
  * empty lines, only under the mouse or when selected); a click on it opens
  * the menu of cell types. Changing the type keeps the cell's Texl source.
  * The right margin (part `right-margin`) is for the comments of a cell:
- * every HTML comment (`<!-- ... -->`) in its Texl source, the marker apart.
+ * every cell comment (`<!--[ ... ]-->`) in its Texl source; other HTML
+ * comments are ignored.
  * The margin shows a comment icon with their number; a click on it fires
  * `comments-click`, whose `detail` has the line number (`line`, from 1)
  * and the comments as strings (`comments`). Showing them is up to the page.
  * When another line is selected, the editor fires `selection-change`, whose
  * `detail` has the selected line number (`line`, from 1).
+ *
+ * Every cell with a marker has a name, unique in the document: the editor
+ * gives one to cells without (new, or read without one), and new names to
+ * pasted cells whose names are in use. Names edited by hand may clash: the
+ * editor keeps them and fires `name-conflict`, whose `detail` has the
+ * `conflicts`, each `{name, lines}`. It fires again only when the clashing
+ * names change.
  *
  * After every change the whole document is rendered again, cell by cell, in
  * one Texl context, so each cell sees the names bound by the cells above.
@@ -266,6 +274,8 @@ export class TexlEditor extends LitElement {
         this.baseUrl = null;
         this.rows = 100;
         this._cells = [];
+        /** The clashing names last reported with `name-conflict`. */
+        this._reportedConflicts = "";
         this._outputs = [];
         this._anchor = 0;
         this._selected = 0;
@@ -306,7 +316,9 @@ export class TexlEditor extends LitElement {
     }
 
     set value(source) {
-        this._cells = parseDocument(source ?? "");
+        this._cells = nameCells(parseDocument(source ?? ""));
+        this._reportedConflicts = "";
+        this._checkNames();
         this._anchor = 0;
         this._selected = 0;
         this._editing = -1;
@@ -457,8 +469,20 @@ export class TexlEditor extends LitElement {
         e.preventDefault();
         const [first, last] = this._range();
         if (e.type === "paste") {
-            const pasted = parseDocument(e.clipboardData.getData("text/plain"));
+            let pasted = parseDocument(e.clipboardData.getData("text/plain"));
             if (pasted.length === 0) return;
+            // Pasted cells whose names are in use (e.g. copied ones) get new names
+            const taken = new Set(
+                this._cells.filter((_, i) => i < first || i > last).map((cell) => cell.name?.toLowerCase()),
+            );
+            pasted = nameCells(
+                pasted.map(({ name, ...cell }) => {
+                    if (!name || taken.has(name.toLowerCase())) return cell;
+                    taken.add(name.toLowerCase());
+                    return { ...cell, name };
+                }),
+                taken,
+            );
             this._spliceCells(first, last - first + 1, pasted);
             this._select(first);
             this._select(first + pasted.length - 1, true);
@@ -513,6 +537,7 @@ export class TexlEditor extends LitElement {
         if (!state) return;
         to.push(this._state());
         this._cells = state.cells;
+        this._checkNames();
         this._select(state.anchor);
         this._select(state.selected, true);
         this.rendered = this._renderCells();
@@ -547,11 +572,28 @@ export class TexlEditor extends LitElement {
         // Empty cells at the end look like the empty lines below: drop them
         while (cells.length > 0 && isEmptyLine(cells.at(-1))) cells = cells.slice(0, -1);
         // Only the first cell may go without marker; the others need one
-        this._cells = cells.map(({ marker, ...cell }, i) => (i === 0 && marker === false ? { ...cell, marker } : cell));
+        // and every cell with a marker needs a name
+        this._cells = nameCells(
+            cells.map(({ marker, ...cell }, i) => (i === 0 && marker === false ? { ...cell, marker } : cell)),
+        );
+        this._checkNames();
         this._anchor = Math.min(this._anchor, this._rowCount() - 1);
         this._select(this._selected, true);
         this.rendered = this._renderCells();
         this.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+    }
+
+    /**
+     * Fires `name-conflict` if cells share a name, unless the same names
+     * were already reported. The editor leaves the names as they are.
+     */
+    _checkNames() {
+        const conflicts = nameConflicts(this._cells);
+        const key = conflicts.map(({ name }) => name.toLowerCase()).join(" ");
+        if (key === this._reportedConflicts) return;
+        this._reportedConflicts = key;
+        if (conflicts.length > 0)
+            this.dispatchEvent(new CustomEvent("name-conflict", { detail: { conflicts }, bubbles: true, composed: true }));
     }
 
     _onCellExit() {

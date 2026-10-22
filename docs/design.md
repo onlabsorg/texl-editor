@@ -31,9 +31,9 @@ content needs it.
     click on the icon opens the menu of cell types; a click elsewhere in
     the margin selects the line.
   - The **right margin** is for the comments of a cell. They live in the
-    document: every HTML comment (`<!-- ... -->`) in a cell's source,
-    except its marker, is a comment of that cell, so comments follow the
-    cell when it moves. To the editor a comment is just a string; a host
+    document: every cell comment (`<!--[ ... ]-->`) in a cell's source is
+    a comment of that cell, so comments follow the cell when it moves.
+    Other HTML comments are ignored. To the editor a comment is just a string; a host
     may give it a structure (author, date, thread) with a syntax of its
     own. The right margin shows a comment icon with their number; a click
     on it fires `comments-click` with the line number and the comments as
@@ -41,7 +41,7 @@ content needs it.
     when it has none. Showing them is up to the page (the demo lists them
     beside the sheet until another line is selected: the editor fires
     `selection-change` with the selected line). In the text editors,
-    comments are written as HTML comments; Shift+F2 inserts one.
+    comments are written as `<!--[ ... ]-->`; Shift+F2 inserts one.
     **(open)** How comments are added and edited outside the source (e.g.
     in a WYSIWYG cell).
   - Both margins are `--texl-margin` wide (6rem); they are the CSS parts
@@ -51,7 +51,8 @@ content needs it.
 - The user moves between cells with the keyboard (or mouse) and presses
   Enter to edit one, as in Excel.
 - Each cell has a **type**, which decides how it is edited and shown.
-- Cells have no name. They are known by their **line number**, shown in
+- People know cells by their **line number** (each cell also has a name
+  in the file, not shown: see File format), shown in
   the left margin as in Excel: 1, 2, 3, …, 10, 11, …, 100, …, on every
   line of the sheet, the empty ones below the document included. People
   talk about "line 25". The number is a position: it changes when cells
@@ -99,27 +100,39 @@ A document is still **one Texl text file**. Each cell starts with a marker
 line, an HTML comment that the editor recognises:
 
 ```texl
-<!--% text %-->
+<!--{ bek4 : markdown }-->
 # Beam check
 <% L = 6, q = 12.5 %>
-<!--% expression %-->
+<!--{ mom3 : markdown }-->
 <% q * L ^ 2 / 8 %>
+<!--[ Anna: check the load combination. ]-->
 ```
 
-- Marker: `<!--% type %-->` on its own line. The cell body is
+- Marker: `<!--{ name : type }-->` on its own line. The cell body is
   everything up to the next marker line.
+- The **name** identifies the cell, e.g. as a fragment identifier
+  (`#bek4`): four lowercase letters and digits, compared without case. The
+  editor gives one to every cell with a marker that has none (new cells,
+  markers written as `<!--{ type }-->`), unique in the document: a
+  syllable and a digit (`bek4`), easy to remember, without the look-alikes
+  `l`, `0` and `1`. Pasted cells whose names are in use get new ones, so a
+  copy never clashes, while a cut and paste keeps them. The name is not
+  shown in the editor.
+- Names edited by hand may clash. The editor leaves them as they are and
+  fires `name-conflict` with the clashing names and their lines.
 - Text before the first marker is a `text` cell without marker, so any plain
-  Texl file opens in the editor.
-- Ordinary HTML comments (`<!-- ... -->`) are not markers: they are the
-  comments of the cell they are in.
+  Texl file opens in the editor. It has no name until it gets a marker
+  (when its type changes or a cell is inserted above it).
+- Cell comments, `<!--[ ... ]-->`, are the comments of the cell they are
+  in. Other HTML comments (`<!-- ... -->`) are neither markers nor
+  comments: they are part of the source like any other text.
 - Unknown cell types are shown as `text` and their type is kept on save.
 - The file renders with any Texl host (CLI, Python, `texl.import`) without
   the editor. The markers pass through rendering as HTML comments: invisible
   in Markdown/HTML output, visible in other output formats.
-- Older markers with a name before the type (`<!--% name | type %-->`)
-  open too: the name is ignored and dropped when the document is saved.
-- **(open)** Final marker syntax: more options (e.g.
-  `<!--% table | header=1 %-->`).
+- Older markers, `<!--% type %-->` (or `<!--% name | type %-->`), open
+  too: they are saved in the new form with a new name.
+- **(open)** More marker options (e.g. `<!--{ bek4 : table | header=1 }-->`).
 
 ## Rendering
 

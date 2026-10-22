@@ -223,6 +223,11 @@
                 if (e.detail.line !== commentsLine) comments.hidden = true;
             });
 
+            editor.addEventListener("name-conflict", (e) => {
+                for (const { name, lines } of e.detail.conflicts)
+                    console.warn(`Cell name "${name}" is used on lines ${lines.join(", ")}`);
+            });
+
             // Name the modifier keys as macOS does
             if (/Mac|iPhone|iPad/.test(navigator.platform)) {
                 for (const key of document.querySelectorAll("kbd[data-mod]")) key.textContent = "⌘";

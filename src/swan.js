@@ -154,12 +154,12 @@ export function insertTag(view) {
 }
 
 /**
- * Command: puts an HTML comment, `<!--  -->`, around each selection, or at
+ * Command: puts a cell comment, `<!--[  ]-->`, around each selection, or at
  * the cursor, and leaves the cursor (or the selected text) inside it.
  * @param {EditorView} view
  */
 export function insertComment(view) {
-    return wrapSelections(view, "<!-- ", " -->");
+    return wrapSelections(view, "<!--[ ", " ]-->");
 }
 
 function wrapSelections(view, open, close) {

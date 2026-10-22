@@ -11,7 +11,7 @@ const EDITOR_KEYS = new Set(["Mod-Enter", "Escape"]);
 const cellKeymap = defaultKeymap.filter((binding) => !EDITOR_KEYS.has(binding.key));
 
 /**
- * Ctrl+Space inserts a tag, `<%  %>`, and Shift+F2 a comment, `<!--  -->`
+ * Ctrl+Space inserts a tag, `<%  %>`, and Shift+F2 a comment, `<!--[  ]-->`
  * (the Excel key for a comment), with the cursor inside it.
  */
 const templateKeymap = [

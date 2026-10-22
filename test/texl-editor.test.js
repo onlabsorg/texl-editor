@@ -2,11 +2,14 @@ import { expect, fixture, html } from "@open-wc/testing";
 import { EditorView } from "@codemirror/view";
 import "../src/index.js";
 
-const SOURCE = `<!--% text %-->
+const SOURCE = `<!--{ txt2 : text }-->
 <% L = 6, q = 12.5 %>Span: <% L %> m
-<!--% markdown %-->
+<!--{ mdn3 : markdown }-->
 <% q * L ^ 2 / 8 %>
 `;
+
+/** A document without its cell names, which the editor may generate. */
+const anon = (source) => source.replace(/<!--\{ [^:]*? : /g, "<!--{ ");
 
 async function editorWith(source) {
     const editor = await fixture(html`<texl-editor></texl-editor>`);
@@ -39,7 +42,7 @@ describe("texl-editor", () => {
 
     it("returns the document unchanged", async () => {
         const editor = await editorWith(SOURCE);
-        expect(editor.value).to.equal(SOURCE);
+        expect(anon(editor.value)).to.equal(anon(SOURCE));
     });
 
     it("edits a cell and updates the document", async () => {
@@ -73,7 +76,7 @@ describe("texl-editor", () => {
         editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, cancelable: true }));
         await editor.updateComplete;
         expect(changes).to.equal(0);
-        expect(editor.value).to.equal(SOURCE);
+        expect(anon(editor.value)).to.equal(anon(SOURCE));
     });
 
     it("edits a text cell in a CodeMirror editor: Enter adds a line, Ctrl+Enter commits", async () => {
@@ -157,7 +160,7 @@ describe("texl-editor", () => {
         expect(escape.defaultPrevented).to.be.true;
         expect(text.mode).to.equal("render");
         expect(changes).to.equal(0);
-        expect(editor.value).to.equal(SOURCE);
+        expect(anon(editor.value)).to.equal(anon(SOURCE));
 
         editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
         await editor.updateComplete;
@@ -213,7 +216,7 @@ describe("texl-editor", () => {
         key({ key: "Enter", ctrlKey: true });
         await editor.rendered;
         await editor.updateComplete;
-        expect(editor.value).to.equal(`${SOURCE}<!--% markdown %-->\n<!--% markdown %-->\nLoad: <% q %>`);
+        expect(anon(editor.value)).to.equal(anon(`${SOURCE}<!--{ mdn3 : markdown }-->\n<!--{ mdn3 : markdown }-->\nLoad: <% q %>`));
         expect(cells(editor)[3].output).to.equal("Load: 12.5");
         expect(cells(editor)).to.have.length(100);
     });
@@ -235,7 +238,7 @@ describe("texl-editor", () => {
             await editor.rendered;
             await editor.updateComplete;
         };
-        const FORMULA = "<!--% markdown %-->\n<% q * L ^ 2 / 8 %>\n";
+        const FORMULA = "<!--{ mdn3 : markdown }-->\n<% q * L ^ 2 / 8 %>\n";
 
         for (const name of ["Delete", "Backspace"]) {
             it(`deletes the selected cell with ${name}`, async () => {
@@ -244,7 +247,7 @@ describe("texl-editor", () => {
                 editor.addEventListener("change", () => changes++);
                 expect(key(editor, { key: name }).defaultPrevented).to.be.true;
                 await settle(editor);
-                expect(editor.value).to.equal(FORMULA);
+                expect(anon(editor.value)).to.equal(anon(FORMULA));
                 expect(changes).to.equal(1);
                 expect(cells(editor)[0].localName).to.equal("texl-cell-markdown");
             });
@@ -258,7 +261,7 @@ describe("texl-editor", () => {
             key(editor, { key: "Delete" });
             await settle(editor);
             expect(changes).to.equal(0);
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
         });
 
         for (const init of [{ key: "Insert" }, { key: "Enter", altKey: true }]) {
@@ -266,7 +269,7 @@ describe("texl-editor", () => {
                 const editor = await editorWith(SOURCE);
                 expect(key(editor, init).defaultPrevented).to.be.true;
                 await settle(editor);
-                expect(editor.value).to.equal(SOURCE.replace("<!--% markdown", "<!--% markdown %-->\n<!--% markdown"));
+                expect(anon(editor.value)).to.equal(anon(SOURCE.replace("<!--{ mdn3 : markdown", "<!--{ mdn3 : markdown }-->\n<!--{ mdn3 : markdown")));
                 expect(cells(editor)[1].selected).to.be.true;
                 expect(cells(editor)[1].mode).to.equal("render");
                 expect(cells(editor)[2].output.trim()).to.equal("56.25");
@@ -278,7 +281,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             key(editor, { key: "Enter", altKey: true, shiftKey: true });
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE.replace("<!--% markdown", "<!--% markdown %-->\n<!--% markdown"));
+            expect(anon(editor.value)).to.equal(anon(SOURCE.replace("<!--{ mdn3 : markdown", "<!--{ mdn3 : markdown }-->\n<!--{ mdn3 : markdown")));
             expect(cells(editor)[1].selected).to.be.true;
         });
 
@@ -292,7 +295,7 @@ describe("texl-editor", () => {
                 expect(key(editor, init).defaultPrevented).to.be.false;
             }
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
         });
 
         it("only moves down on Insert below the last cell", async () => {
@@ -300,22 +303,22 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             key(editor, { key: "Insert" });
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
             expect(cells(editor)[2].selected).to.be.true;
         });
 
         it("drops empty cells at the end of the document", async () => {
-            const editor = await editorWith(SOURCE + "<!--% text %-->\n");
+            const editor = await editorWith(SOURCE + "<!--{ txt2 : text }-->\n");
             key(editor, { key: "ArrowDown" });
             key(editor, { key: "Delete" });
-            expect(editor.value).to.equal(SOURCE.slice(0, -FORMULA.length));
+            expect(anon(editor.value)).to.equal(anon(SOURCE.slice(0, -FORMULA.length)));
         });
 
         it("gives a marker to a cell without one that is no longer first", async () => {
             const editor = await editorWith("Intro\n");
             key(editor, { key: "Enter", altKey: true, shiftKey: true });
             await settle(editor);
-            expect(editor.value).to.equal("<!--% markdown %-->\n<!--% text %-->\nIntro\n");
+            expect(anon(editor.value)).to.equal(anon("<!--{ mdn3 : markdown }-->\n<!--{ txt2 : text }-->\nIntro\n"));
         });
 
         it("copies the selected cell with its marker", async () => {
@@ -323,8 +326,8 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             const event = clipboard(editor, "copy");
             expect(event.defaultPrevented).to.be.true;
-            expect(event.clipboardData.getData("text/plain")).to.equal(FORMULA);
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(event.clipboardData.getData("text/plain"))).to.equal(anon(FORMULA));
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
         });
 
         it("cuts the selected cell", async () => {
@@ -332,8 +335,8 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             const event = clipboard(editor, "cut");
             await settle(editor);
-            expect(event.clipboardData.getData("text/plain")).to.equal(FORMULA);
-            expect(editor.value).to.equal(SOURCE.slice(0, -FORMULA.length));
+            expect(anon(event.clipboardData.getData("text/plain"))).to.equal(anon(FORMULA));
+            expect(anon(editor.value)).to.equal(anon(SOURCE.slice(0, -FORMULA.length)));
         });
 
         it("pastes a copied cell in place of the selected one", async () => {
@@ -343,7 +346,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             clipboard(editor, "paste", copied);
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE + FORMULA);
+            expect(anon(editor.value)).to.equal(anon(SOURCE + FORMULA));
             expect(cells(editor)[2].output.trim()).to.equal("56.25");
         });
 
@@ -352,7 +355,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowDown" });
             clipboard(editor, "paste", "Load: <% q %>");
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE.replace(FORMULA, "<!--% text %-->\nLoad: <% q %>"));
+            expect(anon(editor.value)).to.equal(anon(SOURCE.replace(FORMULA, "<!--{ txt2 : text }-->\nLoad: <% q %>")));
             expect(cells(editor)[1].output).to.equal("Load: 12.5");
         });
 
@@ -363,22 +366,22 @@ describe("texl-editor", () => {
             key(editor, { key: "Delete" });
             key(editor, { key: "Enter", altKey: true, shiftKey: true });
             const changed = editor.value;
-            expect(changed).to.equal("<!--% markdown %-->\n" + FORMULA);
+            expect(anon(changed)).to.equal(anon("<!--{ mdn3 : markdown }-->\n" + FORMULA));
             expect(key(editor, { key: "z", ctrlKey: true }).defaultPrevented).to.be.true;
-            expect(editor.value).to.equal(FORMULA);
+            expect(anon(editor.value)).to.equal(anon(FORMULA));
             key(editor, { key: "z", metaKey: true });
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
             expect(cells(editor)[0].output).to.equal("Span: 6 m\n");
             key(editor, { key: "z", ctrlKey: true });
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
 
             key(editor, { key: "Z", ctrlKey: true, shiftKey: true });
-            expect(editor.value).to.equal(FORMULA);
+            expect(anon(editor.value)).to.equal(anon(FORMULA));
             key(editor, { key: "y", ctrlKey: true });
-            expect(editor.value).to.equal(changed);
+            expect(anon(editor.value)).to.equal(anon(changed));
             key(editor, { key: "y", ctrlKey: true });
-            expect(editor.value).to.equal(changed);
+            expect(anon(editor.value)).to.equal(anon(changed));
             expect(changes).to.equal(6);
         });
 
@@ -389,7 +392,7 @@ describe("texl-editor", () => {
             key(editor, { key: "ArrowUp" });
             key(editor, { key: "z", ctrlKey: true });
             await settle(editor);
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
             expect(cells(editor)[1].selected).to.be.true;
         });
 
@@ -400,17 +403,17 @@ describe("texl-editor", () => {
             key(editor, { key: "Insert" });
             const changed = editor.value;
             key(editor, { key: "y", ctrlKey: true });
-            expect(editor.value).to.equal(changed);
+            expect(anon(editor.value)).to.equal(anon(changed));
 
             editor.value = SOURCE;
             key(editor, { key: "z", ctrlKey: true });
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
         });
 
         describe("on several cells", () => {
-            const A = "<!--% text %-->\nA\n";
-            const B = "<!--% text %-->\nB\n";
-            const C = "<!--% text %-->\nC\n";
+            const A = "<!--{ alf2 : text }-->\nA\n";
+            const B = "<!--{ brv3 : text }-->\nB\n";
+            const C = "<!--{ chl4 : text }-->\nC\n";
             const selected = (editor) => cells(editor).flatMap((c, i) => (c.selected ? [i] : []));
 
             it("selects several cells with Shift+ArrowDown/ArrowUp and Shift+click", async () => {
@@ -447,22 +450,22 @@ describe("texl-editor", () => {
                 const editor = await editorWith(A + B + C);
                 key(editor, { key: "ArrowDown" });
                 key(editor, { key: "ArrowDown", shiftKey: true });
-                expect(clipboard(editor, "copy").clipboardData.getData("text/plain")).to.equal(B + C);
+                expect(anon(clipboard(editor, "copy").clipboardData.getData("text/plain"))).to.equal(anon(B + C));
                 key(editor, { key: "Delete" });
-                expect(editor.value).to.equal(A);
+                expect(anon(editor.value)).to.equal(anon(A));
                 await editor.updateComplete;
                 expect(selected(editor)).to.deep.equal([1]);
 
                 key(editor, { key: "z", ctrlKey: true });
                 await editor.updateComplete;
-                expect(editor.value).to.equal(A + B + C);
+                expect(anon(editor.value)).to.equal(anon(A + B + C));
                 expect(selected(editor)).to.deep.equal([1, 2]);
                 key(editor, { key: "ArrowUp" });
                 key(editor, { key: "ArrowUp" });
                 key(editor, { key: "ArrowDown", shiftKey: true });
                 key(editor, { key: "ArrowDown", shiftKey: true });
-                expect(clipboard(editor, "cut").clipboardData.getData("text/plain")).to.equal(A + B + C);
-                expect(editor.value).to.equal("");
+                expect(anon(clipboard(editor, "cut").clipboardData.getData("text/plain"))).to.equal(anon(A + B + C));
+                expect(anon(editor.value)).to.equal(anon(""));
             });
 
             it("pastes over the selected cells and selects the pasted ones", async () => {
@@ -470,7 +473,7 @@ describe("texl-editor", () => {
                 key(editor, { key: "ArrowDown", shiftKey: true });
                 clipboard(editor, "paste", C + C + C);
                 await editor.updateComplete;
-                expect(editor.value).to.equal(C + C + C + C);
+                expect(anon(editor.value)).to.equal(anon(C + C + C + C));
                 expect(selected(editor)).to.deep.equal([0, 1, 2]);
             });
 
@@ -478,32 +481,32 @@ describe("texl-editor", () => {
                 const editor = await editorWith(A + B + C);
                 key(editor, { key: "ArrowDown", shiftKey: true });
                 key(editor, { key: "Insert" });
-                expect(editor.value).to.equal(A + B + "<!--% markdown %-->\n" + C);
+                expect(anon(editor.value)).to.equal(anon(A + B + "<!--{ mdn3 : markdown }-->\n" + C));
                 key(editor, { key: "ArrowUp", shiftKey: true });
                 key(editor, { key: "Enter", altKey: true, shiftKey: true });
                 await editor.updateComplete;
-                expect(editor.value).to.equal(A + "<!--% markdown %-->\n" + B + "<!--% markdown %-->\n" + C);
+                expect(anon(editor.value)).to.equal(anon(A + "<!--{ mdn3 : markdown }-->\n" + B + "<!--{ mdn3 : markdown }-->\n" + C));
                 expect(selected(editor)).to.deep.equal([1]);
             });
         });
 
         describe("moving cells", () => {
-            const A = "<!--% text %-->\nA\n";
-            const B = "<!--% text %-->\nB\n";
-            const C = "<!--% text %-->\nC\n";
+            const A = "<!--{ alf2 : text }-->\nA\n";
+            const B = "<!--{ brv3 : text }-->\nB\n";
+            const C = "<!--{ chl4 : text }-->\nC\n";
             const selected = (editor) => cells(editor).flatMap((c, i) => (c.selected ? [i] : []));
 
             it("moves the selected cell with Alt+ArrowDown/ArrowUp", async () => {
                 const editor = await editorWith(A + B + C);
                 expect(key(editor, { key: "ArrowDown", altKey: true }).defaultPrevented).to.be.true;
                 await settle(editor);
-                expect(editor.value).to.equal(B + A + C);
+                expect(anon(editor.value)).to.equal(anon(B + A + C));
                 expect(selected(editor)).to.deep.equal([1]);
                 expect(cells(editor)[1].output).to.equal("A\n");
                 key(editor, { key: "ArrowUp", altKey: true });
-                expect(editor.value).to.equal(A + B + C);
+                expect(anon(editor.value)).to.equal(anon(A + B + C));
                 key(editor, { key: "ArrowUp", altKey: true });
-                expect(editor.value).to.equal(A + B + C);
+                expect(anon(editor.value)).to.equal(anon(A + B + C));
             });
 
             it("moves several selected cells together", async () => {
@@ -511,7 +514,7 @@ describe("texl-editor", () => {
                 key(editor, { key: "ArrowDown", shiftKey: true });
                 key(editor, { key: "ArrowDown", altKey: true });
                 await editor.updateComplete;
-                expect(editor.value).to.equal(C + A + B);
+                expect(anon(editor.value)).to.equal(anon(C + A + B));
                 expect(selected(editor)).to.deep.equal([1, 2]);
             });
 
@@ -520,10 +523,10 @@ describe("texl-editor", () => {
                 key(editor, { key: "ArrowDown" });
                 key(editor, { key: "ArrowDown", altKey: true });
                 key(editor, { key: "ArrowDown", altKey: true });
-                expect(editor.value).to.equal(A + "<!--% markdown %-->\n<!--% markdown %-->\n" + B);
+                expect(anon(editor.value)).to.equal(anon(A + "<!--{ mdn3 : markdown }-->\n<!--{ mdn3 : markdown }-->\n" + B));
                 key(editor, { key: "ArrowUp", altKey: true });
                 key(editor, { key: "ArrowUp", altKey: true });
-                expect(editor.value).to.equal(A + B);
+                expect(anon(editor.value)).to.equal(anon(A + B));
             });
 
             it("only moves the selection below the document and stops at the last line", async () => {
@@ -534,7 +537,7 @@ describe("texl-editor", () => {
                 key(editor, { key: "ArrowDown", altKey: true });
                 key(editor, { key: "ArrowDown", altKey: true });
                 await editor.updateComplete;
-                expect(editor.value).to.equal(A);
+                expect(anon(editor.value)).to.equal(anon(A));
                 expect(selected(editor)).to.deep.equal([2]);
             });
 
@@ -543,7 +546,7 @@ describe("texl-editor", () => {
                 key(editor, { key: "ArrowDown", altKey: true });
                 key(editor, { key: "z", ctrlKey: true });
                 await editor.updateComplete;
-                expect(editor.value).to.equal(A + B + C);
+                expect(anon(editor.value)).to.equal(anon(A + B + C));
                 expect(selected(editor)).to.deep.equal([0]);
             });
         });
@@ -567,12 +570,12 @@ describe("texl-editor", () => {
     });
 
     describe("margins", () => {
-        const NOTES = `<!--% markdown %-->
+        const NOTES = `<!--{ mdn3 : markdown }-->
 First line
-<!--% markdown %-->
-Second line <!-- On line 2 -->
-<!-- Also on line 2 -->
-<!--% text %-->
+<!--{ mdn3 : markdown }-->
+Second line <!--[ On line 2 ]-->
+<!--[ Also on line 2 ]-->
+<!--{ txt2 : text }-->
 Third line
 `;
         // The comment count shown in the right margin of each of the first lines
@@ -670,7 +673,7 @@ Third line
         const items = (editor) => [...menu(editor).querySelectorAll("li")];
 
         it("shows the type of each cell in its left margin", async () => {
-            const editor = await editorWith(SOURCE + "<!--% chart %-->\ndata\n");
+            const editor = await editorWith(SOURCE + "<!--{ crt4 : chart }-->\ndata\n");
             const titles = [0, 1, 2, 3].map((i) => typeButton(editor, i).title);
             expect(titles).to.deep.equal(["Text", "Markdown", "chart (unknown type)", "Markdown"]);
         });
@@ -697,7 +700,7 @@ Third line
             await editor.updateComplete;
             expect(menu(editor)).to.be.null;
             expect(cells(editor)[0].localName).to.equal("texl-cell-markdown");
-            expect(editor.value).to.equal(SOURCE.replace("<!--% text %-->", "<!--% markdown %-->"));
+            expect(anon(editor.value)).to.equal(anon(SOURCE.replace("<!--{ txt2 : text }-->", "<!--{ mdn3 : markdown }-->")));
         });
 
         it("opens the menu with Mod+/ and picks a type with the arrows and Enter", async () => {
@@ -729,7 +732,7 @@ Third line
             key(editor, "Escape");
             await editor.updateComplete;
             expect(menu(editor)).to.be.null;
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
         });
 
         it("closes the menu on a press outside it", async () => {
@@ -752,7 +755,7 @@ Third line
             expect(cells(editor).slice(0, 2).map((c) => c.localName)).to.deep.equal(["texl-cell-text", "texl-cell-text"]);
             key(editor, "z", { ctrlKey: true });
             await editor.updateComplete;
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
         });
 
         it("gives the first cell a marker when its type changes", async () => {
@@ -761,7 +764,7 @@ Third line
             key(editor, "End");
             key(editor, "Enter");
             await editor.updateComplete;
-            expect(editor.value).to.equal("<!--% markdown %-->\nHello\n");
+            expect(anon(editor.value)).to.equal(anon("<!--{ mdn3 : markdown }-->\nHello\n"));
         });
 
         it("leaves an empty line below the document empty when its type changes", async () => {
@@ -773,14 +776,81 @@ Third line
             items(editor)[0].click();
             await editor.updateComplete;
             expect(changes).to.equal(0);
-            expect(editor.value).to.equal(SOURCE);
+            expect(anon(editor.value)).to.equal(anon(SOURCE));
+        });
+    });
+
+    describe("cell names", () => {
+        const names = (editor) => [...editor.value.matchAll(/<!--\{ (\S+) : /g)].map((match) => match[1]);
+        const key = (editor, init) => editor.dispatchEvent(new KeyboardEvent("keydown", { cancelable: true, ...init }));
+        const paste = (editor, text) => {
+            const clipboardData = new DataTransfer();
+            clipboardData.setData("text/plain", text);
+            editor.dispatchEvent(new ClipboardEvent("paste", { clipboardData, cancelable: true }));
+        };
+
+        it("names the cells read without a name", async () => {
+            const editor = await editorWith("<!--{ markdown }-->\nA\n<!--% text %-->\nB\n");
+            const [first, second] = names(editor);
+            expect(first).to.match(/^[a-z0-9]{4}$/);
+            expect(second).to.match(/^[a-z0-9]{4}$/);
+            expect(first).to.not.equal(second);
+        });
+
+        it("names new cells, unlike the others", async () => {
+            const editor = await editorWith(SOURCE);
+            key(editor, { key: "Insert" });
+            key(editor, { key: "Insert" });
+            expect(new Set(names(editor)).size).to.equal(4);
+        });
+
+        it("gives new names to pasted copies, and keeps them on a cut and paste", async () => {
+            const editor = await editorWith(SOURCE);
+            key(editor, { key: "ArrowDown" });
+            key(editor, { key: "ArrowDown" });
+            paste(editor, SOURCE);
+            const [a, b, c, d] = names(editor);
+            expect([a, b]).to.deep.equal(["txt2", "mdn3"]);
+            expect(new Set([a, b, c, d]).size).to.equal(4);
+
+            const moved = await editorWith(SOURCE);
+            key(moved, { key: "ArrowDown" });
+            key(moved, { key: "ArrowDown" });
+            paste(moved, "<!--{ mdn3 : markdown }-->\nA\n");
+            expect(new Set(names(moved)).size).to.equal(3);
+            paste(moved, "<!--{ new5 : markdown }-->\nA\n<!--{ NEW5 : markdown }-->\nB\n");
+            expect(names(moved)[2]).to.equal("new5");
+            expect(new Set(names(moved).map((name) => name.toLowerCase())).size).to.equal(4);
+        });
+
+        it("keeps clashing names and reports them with name-conflict", async () => {
+            const editor = await fixture(html`<texl-editor></texl-editor>`);
+            const reported = [];
+            editor.addEventListener("name-conflict", (e) => reported.push(e.detail.conflicts));
+            const source = "<!--{ abc2 : text }-->\nA\n<!--{ xyz3 : text }-->\nB\n<!--{ ABC2 : text }-->\nC\n";
+            editor.value = source;
+            expect(editor.value).to.equal(source);
+            expect(reported).to.deep.equal([[{ name: "abc2", lines: [1, 3] }]]);
+            // The same clash is not reported again
+            key(editor, { key: "Insert" });
+            expect(reported).to.have.length(1);
+            editor.value = source;
+            expect(reported).to.have.length(2);
+        });
+
+        it("reports nothing for a document with unique names", async () => {
+            const editor = await fixture(html`<texl-editor></texl-editor>`);
+            let reported = false;
+            editor.addEventListener("name-conflict", () => (reported = true));
+            editor.value = SOURCE;
+            expect(reported).to.be.false;
         });
     });
 
     it("shows unknown cell types as text and keeps their type", async () => {
-        const source = "<!--% chart %-->\nsome data\n";
+        const source = "<!--{ crt4 : chart }-->\nsome data\n";
         const editor = await editorWith(source);
         expect(cells(editor)[0].localName).to.equal("texl-cell-text");
-        expect(editor.value).to.equal(source);
+        expect(anon(editor.value)).to.equal(anon(source));
     });
 });

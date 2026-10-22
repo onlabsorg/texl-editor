@@ -97,15 +97,15 @@ describe("Shift+F2 while editing", () => {
     it("inserts a comment with the cursor inside it", async () => {
         const [, view] = await cellInEditMode("texl-cell-text", "Span \n");
         expect(shiftF2(view).defaultPrevented).to.be.true;
-        expect(view.state.doc.toString()).to.equal("Span <!--  -->");
-        expect(view.state.selection.main.head).to.equal("Span <!-- ".length);
+        expect(view.state.doc.toString()).to.equal("Span <!--[  ]-->");
+        expect(view.state.selection.main.head).to.equal("Span <!--[ ".length);
     });
 
     it("puts the selected text in a comment", async () => {
         const [, view] = await cellInEditMode("texl-cell-markdown", "Span: check\n");
         view.dispatch({ selection: { anchor: 6, head: 11 } });
         shiftF2(view);
-        expect(view.state.doc.toString()).to.equal("Span: <!-- check -->");
+        expect(view.state.doc.toString()).to.equal("Span: <!--[ check ]-->");
         expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).to.equal("check");
     });
 });

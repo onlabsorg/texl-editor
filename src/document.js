@@ -2,43 +2,106 @@
 //
 // A document is one Texl text file. Each cell starts with a marker line:
 //
-//     <!--% type %-->
+//     <!--{ name : type }-->
 //
 // followed by the cell body: the Texl source the cell produced, up to the
 // next marker line. Text before the first marker is a cell without marker
-// (type "text"), so a plain Texl file opens as a single text cell. Cells
-// have no name: they are known by their line number in the editor.
+// (type "text"), so a plain Texl file opens as a single text cell.
 //
-// The marker syntax is a draft: see docs/design.md.
+// The name identifies the cell, e.g. as a fragment identifier: four
+// lowercase letters and digits, compared without case. The editor gives one
+// to every cell with a marker (`nameCells`). Names edited by hand may clash:
+// `nameConflicts` finds them, and the editor only reports them.
+//
+// Older markers, `<!--% type %-->`, are read too and written in the new form.
 
-const MARKER = /^<!--%(.*?)%-->[ \t]*$/;
+const MARKER = /^<!--\{(.*?)\}-->[ \t]*$/;
+const OLD_MARKER = /^<!--%(.*?)%-->[ \t]*$/;
 
 /**
  * A cell of a document.
  * @typedef {object} CellData
  * @property {string} type - The cell type, e.g. "text" or "markdown".
  * @property {string} texl - The Texl source of the cell body.
+ * @property {string} [name] - The cell name, e.g. "bak7".
  * @property {boolean} [marker] - False for the leading cell without marker.
  */
 
 /**
- * Parses the text of a marker (between `<!--%` and `%-->`). Older markers
- * had a name before the type (`name | type`): the name is ignored.
+ * Parses the text of a marker (between `<!--{` and `}-->`): a name and a
+ * type, separated by a colon. A marker without colon has only the type.
  * @param {string} inner
- * @returns {{type: string}}
+ * @returns {{type: string, name?: string}}
  */
 export function parseMarker(inner) {
-    const type = inner.split("|").at(-1).trim();
-    return { type: type || "text" };
+    const colon = inner.indexOf(":");
+    const type = inner.slice(colon + 1).trim() || "text";
+    const name = colon >= 0 ? inner.slice(0, colon).trim() : "";
+    return name ? { name, type } : { type };
 }
 
 /**
  * Formats a cell marker line.
- * @param {{type: string}} cell
+ * @param {{type: string, name?: string}} cell
  * @returns {string}
  */
-export function formatMarker({ type }) {
-    return `<!--% ${type} %-->`;
+export function formatMarker({ name, type }) {
+    return name ? `<!--{ ${name} : ${type} }-->` : `<!--{ ${type} }-->`;
+}
+
+/** The letters of a name: consonants and vowels, without the l (like a 1). */
+const CONSONANTS = "bcdfghjkmnprstvz";
+const VOWELS = "aeiou";
+/** The digit at the end of a name: 0 and 1 look like o and l. */
+const DIGITS = "23456789";
+
+/**
+ * A new random cell name: a syllable and a digit, e.g. "bak7", easy to
+ * read out and to remember.
+ * @returns {string}
+ */
+export function cellName() {
+    const pick = (chars) => chars[Math.floor(Math.random() * chars.length)];
+    return pick(CONSONANTS) + pick(VOWELS) + pick(CONSONANTS) + pick(DIGITS);
+}
+
+/**
+ * Gives a new name to every cell with a marker but no name, unique in the
+ * document (without case); `taken` are names in use elsewhere. Cells that
+ * have a name keep it, also when it clashes. Returns `cells` itself if no
+ * cell needs a name.
+ * @param {CellData[]} cells
+ * @param {Iterable<string>} [taken]
+ * @returns {CellData[]}
+ */
+export function nameCells(cells, taken = []) {
+    if (cells.every((cell) => cell.name || cell.marker === false)) return cells;
+    const names = new Set([...taken, ...cells.map((cell) => cell.name)].filter(Boolean).map((name) => name.toLowerCase()));
+    return cells.map((cell) => {
+        if (cell.name || cell.marker === false) return cell;
+        let name;
+        do name = cellName();
+        while (names.has(name));
+        names.add(name);
+        return { ...cell, name };
+    });
+}
+
+/**
+ * The names given to more than one cell, compared without case, with the
+ * lines (from 1) of the cells that have them.
+ * @param {CellData[]} cells
+ * @returns {{name: string, lines: number[]}[]}
+ */
+export function nameConflicts(cells) {
+    const lines = new Map();
+    cells.forEach((cell, i) => {
+        if (!cell.name) return;
+        const key = cell.name.toLowerCase();
+        if (!lines.has(key)) lines.set(key, { name: cell.name, lines: [] });
+        lines.get(key).lines.push(i + 1);
+    });
+    return [...lines.values()].filter((conflict) => conflict.lines.length > 1);
 }
 
 /**
@@ -55,13 +118,16 @@ export function parseDocument(source) {
         body = [];
     };
     for (const line of source.split(/(?<=\n)/)) {
-        const match = MARKER.exec(line.replace(/\r?\n$/, ""));
-        if (match) {
+        const text = line.replace(/\r?\n$/, "");
+        const match = MARKER.exec(text);
+        const old = !match && OLD_MARKER.exec(text);
+        if (match || old) {
             if (current || body.length > 0) {
                 current ??= { type: "text", marker: false };
                 flush();
             }
-            current = parseMarker(match[1]);
+            // An older marker may have a name before the type, `name | type`: it is dropped
+            current = match ? parseMarker(match[1]) : { type: old[1].split("|").at(-1).trim() || "text" };
         } else {
             body.push(line);
         }
@@ -74,14 +140,14 @@ export function parseDocument(source) {
 }
 
 /**
- * The comments of a cell: the text of every HTML comment (`<!-- ... -->`)
- * in its body, trimmed. Markers are not in the body, so they never count.
- * A comment has no structure: hosts may give it one with their own syntax.
+ * The comments of a cell: the text of every cell comment (`<!--[ ... ]-->`)
+ * in its body, trimmed. Other HTML comments are not cell comments. A
+ * comment has no structure: hosts may give it one with their own syntax.
  * @param {string} texl - The Texl source of the cell body.
  * @returns {string[]}
  */
 export function cellComments(texl) {
-    return [...texl.matchAll(/<!--([\s\S]*?)-->/g)].map((match) => match[1].trim());
+    return [...texl.matchAll(/<!--\[([\s\S]*?)\]-->/g)].map((match) => match[1].trim());
 }
 
 /**

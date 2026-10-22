@@ -32,7 +32,7 @@ npm run dev        # demo page at http://localhost:5173
     import "@onlabsorg/texl-editor";
 
     const editor = document.getElementById("editor");
-    editor.value = "<!--% markdown %-->\n# Hello\n<!--% markdown %-->\n6 × 7 = <% 6 * 7 %>\n";
+    editor.value = "<!--{ markdown }-->\n# Hello\n<!--{ markdown }-->\n6 × 7 = <% 6 * 7 %>\n";
     editor.addEventListener("change", () => console.log(editor.value));
 </script>
 ```
@@ -44,15 +44,19 @@ changes.
 ## The file format
 
 A document is a single Texl text file. Each cell starts with a marker line,
-`<!--% type %-->`, followed by the Texl source the cell produced. Cells have
-no name: the editor numbers its lines 1, 2, 3, … in the left margin.
+`<!--{ name : type }-->`, followed by the Texl source the cell produced.
+The editor numbers its lines 1, 2, 3, … in the left margin; the name, four
+lowercase letters and digits, is given by the editor and not shown: it
+identifies the cell, e.g. in a link. Comments on a cell are written
+`<!--[ ... ]-->`; other HTML comments are left alone.
 
 ```texl
-<!--% markdown %-->
+<!--{ bek4 : markdown }-->
 # Beam check
 <% L = 6, q = 12.5 %>
-<!--% markdown %-->
+<!--{ mom3 : markdown }-->
 Midspan moment: <% q * L ^ 2 / 8 %> kNm
+<!--[ Anna: check the load combination. ]-->
 ```
 
 The file is a normal Texl document: it renders with any Texl tool, without
