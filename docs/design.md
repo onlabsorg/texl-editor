@@ -153,6 +153,8 @@ markers render to themselves and contain no tags.
 
 Plain JavaScript (ES modules, JSDoc types) and [Lit](https://lit.dev) web
 components.
+The [architecture](architecture.md) page describes the modules in detail;
+this section keeps the outline.
 
 ```
 <texl-editor>                     the app: document, navigation, rendering

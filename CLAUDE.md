@@ -79,7 +79,9 @@ is managed by nvm (LTS as default); non-interactive shells must run
   (round-trip exact); cell names (`nameCells`, `nameConflicts`) and
   comments (`cellComments`).
 - `src/engine.js` — loads the wasm module once, creates engines.
-- `docs/` — `design.md` (editing model, open points), `texl-primer.md`.
+- `docs/` — `design.md` (editing model, open points), `texl-primer.md`,
+  and the user documentation: `guide.md` (tutorial), `api.md` (API
+  reference), `architecture.md` (modules and classes).
 
 ## Conventions
 
@@ -97,6 +99,9 @@ is managed by nvm (LTS as default); non-interactive shells must run
   file is loaded relative to `texl_wasm.js`.
 - Keep `docs/design.md` up to date when the editing model or file format
   changes; mark undecided items **(open)**.
+- Keep `README.md`, `docs/api.md`, `docs/guide.md` and
+  `docs/architecture.md` up to date when the public API or the module
+  structure changes.
 - Strategic decisions (scope, timeline, licensing) are made in the parent
   OnLabs.org folder, not here.
 - `local/`, `*.todo.md`, `*.repomix.md` and `helper.sh` are git-ignored local
