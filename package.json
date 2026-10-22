@@ -1,6 +1,6 @@
 {
   "name": "@onlabsorg/texl-editor",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Web editor for Texl documents: a stack of cells, as a web component",
   "license": "MIT",
   "author": "OnLabs.org",
