@@ -1,0 +1,73 @@
+# Tests the editor in headless Chrome and publishes it to npm as
+# @onlabsorg/texl-editor.
+#
+# Pushing a tag like texl-editor-v0.1.0 on a commit of main also publishes to
+# npm. The tag version must match the version in package.json. Publishing uses
+# trusted publishing: on npmjs.com, in the settings of the
+# @onlabsorg/texl-editor package, add this repository and the workflow file
+# `texl-editor.yml` as a trusted publisher, with the environment `npm`.
+
+name: texl-editor
+
+on:
+  push:
+    branches: [main]
+    tags: ['texl-editor-v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The runner image has Chrome, which @web/test-runner-chrome finds
+      - run: npm test
+      - run: npm run build
+      - name: Pack the package
+        run: npm pack
+      - name: Upload the package
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-package
+          path: onlabsorg-texl-editor-*.tgz
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: ${{ startsWith(github.ref, 'refs/tags/texl-editor-v') }}
+    needs: [test]
+    environment: npm
+    permissions:
+      # Used by npm trusted publishing and to sign the provenance statement
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check that the tagged commit is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Check that the tag matches the package version
+        run: test "$(npm pkg get version | tr -d '"')" = "${GITHUB_REF_NAME#texl-editor-v}"
+      - uses: actions/download-artifact@v7
+        with:
+          name: npm-package
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later
+      - name: Update npm
+        run: npm install -g npm@latest
+      # No --access flag: the package is already public, and a token from
+      # trusted publishing may publish versions but not change access settings
+      - name: Publish to npm
+        run: npm publish onlabsorg-texl-editor-*.tgz
