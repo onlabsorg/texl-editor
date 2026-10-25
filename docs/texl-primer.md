@@ -1,7 +1,7 @@
 # Texl primer for editor work
 
-*What you need to know about Texl to work on the editor, as of Texl 0.2
-(`@onlabsorg/texl` on npm), 2026-10-18. The full manual is at
+*What you need to know about Texl to work on the editor, as of Texl 0.4
+(`@onlabsorg/texl` on npm), 2026-10-25. The full manual is at
 <https://onlabsorg.github.io/texl/>; the source is
 <https://github.com/onlabsorg/texl>. The results shown below were checked
 against the real engine.*
@@ -55,7 +55,11 @@ Swan is small, dynamically typed and expression-only (no statements).
   `x -> x * 2` or `(a, b) -> a + b`, tuples `(1, 2)`, `Nothing` (the empty
   tuple), promises, and undefined values.
 - **Binding:** `x = 10` binds a name in the current scope. `bind "name" value`
-  binds an engine-wide name (used to keep data loaded by an import).
+  binds a name in the document's global scope, from anywhere (e.g. in the
+  callback of an import); like `=`, it ends up in the document's `data`.
+- **Namespaces are immutable:** `ns.(y = 4)` binds nothing (it gives an
+  undefined value). `ns.expr` evaluates `expr` with the members of `ns` in
+  scope; to add members, create a new namespace.
 - **Calls:** by juxtaposition: `f x`, `f (a, b)`, `text.from 3`.
 - **Access:** `ns.member`; lists are indexed by calling them: `items 0`.
 - **Conditions:** `cond ? then ; else`. `a ; b` gives `b` when `a` is
@@ -90,13 +94,15 @@ You ordered <% fmt.plural (3, "book") %>.
 
 - Rendering waits at a tag whose value is a promise, so names bound in its
   callback are available to the following tags.
-- Relative URIs resolve against the importing document's URL. Templates
-  rendered from a string (as the editor does) resolve them against the root
-  of the engine's base URL.
-- Each document is loaded and rendered **once per engine** and cached; create
-  a new engine to see changes to imported documents.
-- An imported document sees the importer's names *as they are at the time of
-  the import*.
+- Relative URIs resolve against the importing document's URL. A source
+  rendered with `engine.render(uri, source)` (as the editor does) is the
+  document at `uri`.
+- Within one rendering, each document is fetched and rendered **once**;
+  the next rendering fetches it again, so changes to imported documents
+  show (the browser HTTP cache still applies).
+- An imported document is **isolated**: it sees the engine globals, not
+  the importer's names. A document importing itself (directly or through
+  others) gets `Undefined` for that import.
 
 This is the mechanism the OnLabs platform builds on: links between documents
 are imports through a platform URL scheme.
@@ -108,13 +114,22 @@ import init, { TexlEngine } from "@onlabsorg/texl";
 
 await init();                                   // load the wasm module, once
 const engine = new TexlEngine(globals, baseUrl); // both optional
-await engine.render("2 + 2 = <% 2 + 2 %>");     // fresh scope: "2 + 2 = 4"
-const doc = await engine.load("report.texl");   // {uri, source, data, rendering} or null
+const doc = await engine.render("docs/report.texl", source); // {uri, source, data, rendering}
+await engine.fetch("report.texl");              // the source only, or null
+await engine.load("report.texl");               // fetch + render, or null if the fetch fails
 engine.set("today", "2026-10-18");              // global for all templates
 ```
 
-A **context** is a scope that keeps its names across renders. The editor
-uses one context per rendering pass and renders the cells in order into it:
+The engine holds configuration only (globals, base URL): every `render` and
+`load` starts from a new scope and a new import cache, and runs the cycle
+collector when done. Their promises reject (with a string) only if `uri`
+cannot be resolved. The editor renders the whole document with one
+`engine.render(url, source)` per pass and splits the rendering at the
+markers.
+
+A **context** is a scope that keeps its names across renders. It is not a
+document: `texl.import` is not defined in it. After freeing a context that
+defined functions, call `collect()` (exported by the package):
 
 ```js
 const context = engine.createContext({ price: 12.5 });
@@ -125,8 +140,9 @@ context.names();                               // ["price", "texl", "total"]
 context.free();
 ```
 
-`context.names()` after each cell gives the names visible to the next cells:
-the basis for autocompletion ("intellisense").
+`context.names()` gives the names of a context, a possible basis for
+autocompletion ("intellisense"); see the open point in
+[design.md](design.md#rendering).
 
 ### Values between JavaScript and Swan
 

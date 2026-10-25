@@ -9,7 +9,7 @@ inside, see the [architecture](architecture.md).*
 2. [Configure Vite](#2-configure-vite)
 3. [Show a document](#3-show-a-document)
 4. [Load and save](#4-load-and-save)
-5. [Imports and the base URL](#5-imports-and-the-base-url)
+5. [Imports and the document URL](#5-imports-and-the-document-url)
 6. [Comments and cell names](#6-comments-and-cell-names)
 7. [Write your own cell type](#7-write-your-own-cell-type)
 8. [Style the editor](#8-style-the-editor)
@@ -195,7 +195,7 @@ Points to keep in mind:
 - The saved file is a normal Texl document. It renders with any Texl tool,
   without the editor; the markers render as HTML comments.
 
-## 5. Imports and the base URL
+## 5. Imports and the document URL
 
 A document can import other documents by URL with `texl.import`, e.g. a
 library of steel sections:
@@ -206,25 +206,28 @@ library of steel sections:
 Section <% steel.IPE.IPE300.name %>
 ```
 
-Relative URLs resolve against the editor's **base URL**: by default the
-page's URL. When documents live elsewhere, set the `base-url` attribute (an
-absolute URL) to the document's location:
+The editor renders the document as the document at its **URL**, set with
+the `url` attribute; relative imports resolve against the document's
+folder. A relative `url` resolves against the page. The default,
+`untitled.texl`, puts an unsaved document in the page's folder.
 
 ```html
-<texl-editor id="editor" base-url="https://example.com/docs/"></texl-editor>
+<texl-editor id="editor" url="https://example.com/docs/report.texl"></texl-editor>
 ```
 
-or from JavaScript, **before** the first `value`:
+or from JavaScript, at any time (the editor renders again):
 
 ```js
-editor.baseUrl = new URL("/api/documents/", location.href).href;
+editor.url = new URL("/api/documents/report.texl", location.href).href;
 editor.value = text;
 ```
 
-The editor creates its Texl engine on the first render and reads the base
-URL then; changing it later has no effect. The engine also caches imported
-documents: to see a changed library, create a new editor element. Imports
-are loaded by the browser, so the usual CORS rules apply.
+Nothing is cached between renderings: every rendering fetches the imported
+documents again, so a changed library shows on the next one (the browser's
+HTTP cache still applies). Imports are loaded by the browser, so the usual
+CORS rules apply. Links in the rendered output, e.g. `[steel](steel.texl)`
+in Markdown, are resolved by the browser against the page, not the
+document.
 
 ## 6. Comments and cell names
 
@@ -434,7 +437,7 @@ to list comments, render a read-only preview or check a document, without
 showing an editor:
 
 ```js
-import { parseDocument, cellComments, createEngine } from "@onlabsorg/texl-editor";
+import { parseDocument, cellComments, splitRendering, createEngine } from "@onlabsorg/texl-editor";
 
 const cells = parseDocument(text);
 
@@ -445,10 +448,8 @@ const comments = cells.flatMap((cell, i) =>
 
 // The rendered output of every cell, as the editor renders it
 const engine = await createEngine();
-const context = engine.createContext();
-const outputs = [];
-for (const cell of cells) outputs.push(await context.render(cell.texl));
-context.free();
+const doc = await engine.render("docs/report.texl", text);   // the document's URL
+const outputs = splitRendering(doc.rendering, cells);
 ```
 
 `serializeDocument(cells)` turns cells back into text, so you can also
@@ -499,7 +500,7 @@ Lit:
 ```js
 html`<texl-editor
     .value=${this.documentText}
-    base-url=${this.baseUrl}
+    url=${this.documentUrl}
     @change=${(e) => this.save(e.target.value)}
 ></texl-editor>`;
 ```

@@ -1,6 +1,13 @@
 import { LitElement, css } from "lit";
 import { html, unsafeStatic } from "lit/static-html.js";
-import { parseDocument, serializeDocument, cellComments, nameCells, nameConflicts } from "./document.js";
+import {
+    parseDocument,
+    serializeDocument,
+    splitRendering,
+    cellComments,
+    nameCells,
+    nameConflicts,
+} from "./document.js";
 import { cellTagName, cellClass, cellTypes } from "./registry.js";
 import { createEngine } from "./engine.js";
 import { TexlCell } from "./texl-cell.js";
@@ -91,12 +98,16 @@ function isMod(e) {
  * `conflicts`, each `{name, lines}`. It fires again only when the clashing
  * names change.
  *
- * After every change the whole document is rendered again, cell by cell, in
- * one Texl context, so each cell sees the names bound by the cells above.
+ * After every change the whole document is rendered again as the document
+ * at `url`, as any other Texl host renders it, and the rendering is split
+ * into the outputs of the cells at their marker lines. Each cell sees the
+ * names bound by the cells above; imports resolve against `url` and show
+ * the current content of the imported documents. `url` may change at any
+ * time: the editor renders again.
  */
 export class TexlEditor extends LitElement {
     static properties = {
-        baseUrl: { type: String, attribute: "base-url" },
+        url: { type: String },
         rows: { type: Number },
         _cells: { state: true },
         _outputs: { state: true },
@@ -271,7 +282,8 @@ export class TexlEditor extends LitElement {
 
     constructor() {
         super();
-        this.baseUrl = null;
+        /** The URL of the document, resolved against the page. */
+        this.url = "untitled.texl";
         this.rows = 100;
         this._cells = [];
         /** The clashing names last reported with `name-conflict`. */
@@ -280,6 +292,7 @@ export class TexlEditor extends LitElement {
         this._anchor = 0;
         this._selected = 0;
         this._editing = -1;
+        /** The Texl engine, as a promise, created on the first rendering. */
         this._engine = null;
         this._generation = 0;
         /** Earlier and undone states, as `{cells, anchor, selected}`. */
@@ -308,6 +321,14 @@ export class TexlEditor extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener("pointerdown", this._onPointerDown, true);
+        // Release the wasm memory; a rendering in progress keeps what it needs
+        this._engine?.then((engine) => engine.free());
+        this._engine = null;
+    }
+
+    willUpdate(changed) {
+        // The first rendering follows `value`; later, a new URL renders again
+        if (changed.has("url") && this.hasUpdated) this.rendered = this._renderCells();
     }
 
     /** The document text. */
@@ -333,11 +354,16 @@ export class TexlEditor extends LitElement {
 
     async _renderCells() {
         const generation = ++this._generation;
-        this._engine ??= await createEngine(null, this.baseUrl);
-        const context = this._engine.createContext();
-        const outputs = [];
-        for (const cell of this._cells) outputs.push(await context.render(cell.texl));
-        context.free();
+        const cells = this._cells;
+        this._engine ??= createEngine();
+        const engine = await this._engine;
+        let outputs = [];
+        try {
+            const doc = await engine.render(this.url, serializeDocument(cells));
+            outputs = splitRendering(doc.rendering, cells);
+        } catch {
+            // The URL cannot be resolved: the cells show no output
+        }
         if (generation === this._generation) this._outputs = outputs;
     }
 

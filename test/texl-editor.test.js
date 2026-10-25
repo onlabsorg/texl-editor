@@ -854,3 +854,76 @@ Third line
         expect(anon(editor.value)).to.equal(anon(source));
     });
 });
+
+describe("texl-editor rendering", () => {
+    // Documents served by a stand-in for `fetch`, by URL
+    const served = new Map();
+    const realFetch = window.fetch;
+    before(() => {
+        window.fetch = async (url) => {
+            const key = String(url);
+            return served.has(key) ? new Response(served.get(key)) : realFetch(url);
+        };
+    });
+    after(() => (window.fetch = realFetch));
+    afterEach(() => served.clear());
+
+    const IMPORTER = `<!--{ abc2 : text }-->
+<% texl.import("lib.texl") ~> (lib -> bind "lib" lib.data) %>Width: <% lib.w %>
+<!--{ xyz3 : text }-->
+Twice: <% 2 * lib.w %>
+`;
+
+    async function editorAt(url, source) {
+        const editor = await fixture(html`<texl-editor url=${url}></texl-editor>`);
+        editor.value = source;
+        await editor.rendered;
+        await editor.updateComplete;
+        return editor;
+    }
+
+    it("resolves imports against the document URL", async () => {
+        served.set("https://example.com/docs/lib.texl", "<% w = 3 %>");
+        const editor = await editorAt("https://example.com/docs/main.texl", IMPORTER);
+        expect(cells(editor).slice(0, 2).map((cell) => cell.output)).to.deep.equal(["Width: 3\n", "Twice: 6\n"]);
+    });
+
+    it("shows a changed imported document on the next rendering", async () => {
+        served.set("https://example.com/docs/lib.texl", "<% w = 3 %>");
+        const editor = await editorAt("https://example.com/docs/main.texl", IMPORTER);
+        served.set("https://example.com/docs/lib.texl", "<% w = 5 %>");
+        editor.value = editor.value;
+        await editor.rendered;
+        await editor.updateComplete;
+        expect(cells(editor)[1].output).to.equal("Twice: 10\n");
+    });
+
+    it("renders again when the URL changes", async () => {
+        served.set("https://example.com/a/lib.texl", "<% w = 3 %>");
+        served.set("https://example.com/b/lib.texl", "<% w = 4 %>");
+        const editor = await editorAt("https://example.com/a/main.texl", IMPORTER);
+        editor.url = "https://example.com/b/main.texl";
+        await editor.updateComplete;
+        await editor.rendered;
+        await editor.updateComplete;
+        expect(cells(editor)[1].output).to.equal("Twice: 8\n");
+    });
+
+    it("keeps the rendering of an imported editor document in one cell", async () => {
+        served.set("https://example.com/docs/lib.texl", "<!--{ lib5 : text }-->\nlib\n<!--{ xyz3 : text }-->\nend\n");
+        const source = `<!--{ abc2 : text }-->
+<% texl.import("lib.texl") ~> (lib -> lib.rendering) %>
+<!--{ pim4 : text }-->
+after
+`;
+        const editor = await editorAt("https://example.com/docs/main.texl", source);
+        expect(cells(editor)[0].output).to.contain("lib5").and.contain("end");
+        expect(cells(editor)[1].output).to.equal("after\n");
+    });
+
+    it("shows no output if the URL cannot be resolved", async () => {
+        const editor = await editorAt("http://[bad/main.texl", "<!--{ abc2 : text }-->\nA\n");
+        expect(cells(editor)[0].output).to.equal("");
+        expect(anon(editor.value)).to.equal("<!--{ text }-->\nA\n");
+    });
+});

@@ -27,8 +27,40 @@ that will embed it is private.
 - **Texl essentials** for this work are in `docs/texl-primer.md` (tags,
   shared top-down scope, Swan, imports, the `@onlabsorg/texl` JavaScript API).
   The full manual is <https://onlabsorg.github.io/texl/>. If the Texl repo is
-  cloned next to this one (`../texl`), read it only when the primer and the
-  manual are not enough.
+  cloned next to this one (`../texl`), read its `texl.summary.md` first and
+  its code only when the primer, the manual and the summary are not enough.
+
+## Summary for OnLabs.org (`texl-editor.summary.md`)
+
+`texl-editor.summary.md` (repository root, committed) is the factual summary of
+this repository for the OnLabs.org coordination folder (the parent folder):
+what it is, how it is built at a high level, published versions, status,
+next steps and known limitations. Strategy sessions read it instead of the
+code. Strategic matters (why it matters for OnLabs, priorities, timing,
+strategic open points) are not written here: they live in the coordination
+folder's `SUBPROJECTS.md`.
+
+**When to update it:** only when the user runs `/commit-changes` (the skill
+in `.claude/skills/commit-changes/`). The skill updates the summary with the
+pending changes and with any commits it does not cover yet, then commits the
+changes and the summary together. The summary covers every commit up to and
+including the last commit that changed it (`git log -1 --
+texl-editor.summary.md`). Do not update the summary or commit on your own
+initiative; if a task clearly makes the summary outdated, say so once at the
+end and suggest running `/commit-changes`.
+
+**Decisions from the coordination folder:** at the start of a session, if
+`../DECISIONS.md` exists, check it for entries dated after the last commit
+that changed the summary (`git log -1 --format=%ad --date=short --
+texl-editor.summary.md`) that concern this repository, and tell the user
+about any you find before starting the task.
+
+Rules:
+
+- Stay at helicopter level, in plain words for a non-programmer reader; code
+  details belong in this repository's docs and this file.
+- Do not write strategic content or decisions into the summary.
+- English; Markdown wrapped at about 80 characters.
 
 ## Stack and commands
 
@@ -55,8 +87,9 @@ is managed by nvm (LTS as default); non-interactive shells must run
 - `src/index.js` — entry point: registers the built-in cells and
   `<texl-editor>`, re-exports the public API.
 - `src/texl-editor.js` — `TexlEditor`: holds the cells, keyboard navigation,
-  edit mode, and rendering (one Texl context per pass, cells rendered in
-  order). Public surface: `value` (document text), `base-url`, `rows`
+  edit mode, and rendering (one `engine.render` of the whole document per
+  pass, split into cell outputs at the markers by `splitRendering`).
+  Public surface: `value` (document text), `url` (document URL), `rows`
   (lines on the sheet, default 100), `change` event, `comments-click` event
   (`{line, comments}`: a cell's cell comments as strings; on a click on the
   comment icon or Shift+F2), `selection-change` event (`{line}`),
@@ -76,9 +109,11 @@ is managed by nvm (LTS as default); non-interactive shells must run
   custom element `texl-cell-<type>`; unknown types fall back to `text`.
   `cellClass(type)` and `cellTypes()` list them (for the type menu).
 - `src/document.js` — parse a file into cells and serialise them back
-  (round-trip exact); cell names (`nameCells`, `nameConflicts`) and
-  comments (`cellComments`).
-- `src/engine.js` — loads the wasm module once, creates engines.
+  (round-trip exact); cell names (`nameCells`, `nameConflicts`),
+  comments (`cellComments`), and `splitRendering` (a document's rendering
+  into cell outputs).
+- `src/engine.js` — loads the wasm module once, creates engines (they hold
+  configuration only; nothing is cached between renderings).
 - `docs/` — `design.md` (editing model, open points), `texl-primer.md`,
   and the user documentation: `guide.md` (tutorial), `api.md` (API
   reference), `architecture.md` (modules and classes).

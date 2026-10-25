@@ -3,7 +3,7 @@
 
 A simply supported steel beam under a uniform load. The section properties
 come from the library [steel.texl](examples/steel.texl).
-<% texl.import("examples/steel.texl") ~> (lib -> bind "steel" lib.data) %>
+<% texl.import("steel.texl") ~> (lib -> bind "steel" lib.data) %>
 <!--{ lod2 : markdown }-->
 ## Input
 

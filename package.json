@@ -1,6 +1,6 @@
 {
   "name": "@onlabsorg/texl-editor",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Web editor for Texl documents: a stack of cells, as a web component",
   "license": "MIT",
   "author": "OnLabs.org",
@@ -34,7 +34,7 @@
     "@codemirror/language": "^6.13.1",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
-    "@onlabsorg/texl": "^0.2.0",
+    "@onlabsorg/texl": "^0.4.0",
     "dompurify": "^3.4.17",
     "lit": "^3.3.3",
     "marked": "^18.1.1"

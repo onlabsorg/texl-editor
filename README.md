@@ -70,7 +70,7 @@ Then:
 | Property / attribute | Description |
 |----------------------|-------------|
 | `value`              | The document text (property) |
-| `base-url`           | URL that relative `texl.import`s resolve against |
+| `url`                | URL of the document; relative `texl.import`s resolve against it |
 | `rows`               | Lines on the sheet (default 100) |
 | `rendered`           | Promise of the current rendering pass |
 

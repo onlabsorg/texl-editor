@@ -2,6 +2,7 @@ import { expect } from "@open-wc/testing";
 import {
     parseDocument,
     serializeDocument,
+    splitRendering,
     parseMarker,
     formatMarker,
     cellComments,
@@ -158,5 +159,69 @@ describe("serializeDocument", () => {
 
     it("writes older markers in the new form", () => {
         expect(serializeDocument(parseDocument("<!--% markdown %-->\nA\n"))).to.equal("<!--{ markdown }-->\nA\n");
+    });
+});
+
+describe("splitRendering", () => {
+    const a = { name: "abc2", type: "text", texl: "A\n" };
+    const b = { name: "xyz3", type: "markdown", texl: "B\n" };
+
+    it("splits at the cells' marker lines", () => {
+        const rendering = "<!--{ abc2 : text }-->\nA out\n<!--{ xyz3 : markdown }-->\nB out\n";
+        expect(splitRendering(rendering, [a, b])).to.deep.equal(["A out\n", "B out\n"]);
+    });
+
+    it("gives the text before the first marker to the leading cell", () => {
+        const lead = { type: "text", texl: "pre\n", marker: false };
+        expect(splitRendering("pre out\n<!--{ abc2 : text }-->\nA out", [lead, a])).to.deep.equal([
+            "pre out\n",
+            "A out",
+        ]);
+    });
+
+    it("reads other markers as content", () => {
+        // An imported editor document brings its own markers in
+        const rendering =
+            "<!--{ abc2 : text }-->\n<!--{ lib5 : text }-->\nlib\n<!--{ xyz3 : markdown }-->\nB out";
+        expect(splitRendering(rendering, [a, b])).to.deep.equal(["<!--{ lib5 : text }-->\nlib\n", "B out"]);
+    });
+
+    it("matches the markers in order", () => {
+        // The second marker of the import is the same as the first cell's
+        const rendering = "<!--{ abc2 : text }-->\nx\n<!--{ abc2 : text }-->\ny\n<!--{ xyz3 : markdown }-->\nB";
+        expect(splitRendering(rendering, [a, b])).to.deep.equal(["x\n<!--{ abc2 : text }-->\ny\n", "B"]);
+    });
+
+    it("matches markers at the start of a line only", () => {
+        const rendering = "<!--{ abc2 : text }-->\nsee <!--{ xyz3 : markdown }-->\n<!--{ xyz3 : markdown }-->\nB";
+        expect(splitRendering(rendering, [a, b])).to.deep.equal(["see <!--{ xyz3 : markdown }-->\n", "B"]);
+    });
+
+    it("gives the text of a missing marker to the last cell found", () => {
+        const c = { name: "pim4", type: "text", texl: "C\n" };
+        // A tag from the first cell to the second swallowed the second marker
+        const rendering = "<!--{ abc2 : text }-->\nA and B\n<!--{ pim4 : text }-->\nC out\n";
+        expect(splitRendering(rendering, [a, b, c])).to.deep.equal(["A and B\n", "", "C out\n"]);
+    });
+
+    it("gives no output to cells before the first marker found", () => {
+        expect(splitRendering("broken", [a, b])).to.deep.equal(["", ""]);
+    });
+
+    it("drops the line break that serializeDocument adds", () => {
+        const one = { name: "abc2", type: "text", texl: "one" };
+        const two = { name: "xyz3", type: "text", texl: "two" };
+        const rendering = serializeDocument([one, two, b]);
+        expect(splitRendering(rendering, [one, two, b])).to.deep.equal(["one", "two", "B\n"]);
+    });
+
+    it("keeps the line breaks of the cells", () => {
+        const cells = [a, { ...b, texl: "B\n\n" }, { name: "pim4", type: "text", texl: "" }, a];
+        expect(splitRendering(serializeDocument(cells), cells)).to.deep.equal(["A\n", "B\n\n", "", "A\n"]);
+    });
+
+    it("reads cells without name", () => {
+        const cells = [{ type: "text", texl: "x" }, { type: "text", texl: "y" }];
+        expect(splitRendering(serializeDocument(cells), cells)).to.deep.equal(["x", "y"]);
     });
 });

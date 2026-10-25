@@ -24,7 +24,7 @@ exactly the text that is saved.
   value ──────▶ │ parseDocument ─▶ cells [{type,name,texl}] ─▶ serializeDocument │ ──▶ value
   (text)        │                    │          ▲                                    │    (text)
                 │       render pass  │          │ cell-change {texl}                 │
-                │  (one Texl context)▼          │                                    │
+                │ (render + split)   ▼          │                                    │
                 │   outputs[] ─▶ <texl-cell-markdown .texl .output .mode>            │ ──▶ change,
                 │                <texl-cell-text …>  <texl-cell-quantity …>  …       │     selection-change,
                 └────────────────────────────────────────────────────────────────────┘     comments-click,
@@ -41,7 +41,7 @@ exactly the text that is saved.
 | `src/cells/text-cell.js`      | `TextCell`: Texl template edited in CodeMirror 6; fallback type | texl-cell, swan, CodeMirror | [`TextCell`](api.md#textcell) |
 | `src/cells/markdown-cell.js`  | `MarkdownCell`: `TextCell` with Markdown highlighting and Markdown output | text-cell, swan, marked, DOMPurify | [`MarkdownCell`](api.md#markdowncell) |
 | `src/registry.js`             | Maps cell types to custom element tags | — | [Cell registry](api.md#cell-registry) |
-| `src/document.js`             | The file format: parse, serialise, names, comments. Pure functions, no DOM | — | [Document functions](api.md#document-functions) |
+| `src/document.js`             | The file format: parse, serialise, names, comments, split a rendering. Pure functions, no DOM | — | [Document functions](api.md#document-functions) |
 | `src/engine.js`               | Loads the Texl WebAssembly module once, creates engines | `@onlabsorg/texl` | [Engine](api.md#engine) |
 | `src/swan.js`                 | Swan highlighting and the tag/comment commands for CodeMirror | CodeMirror | [Swan helpers](api.md#swan-helpers) |
 
@@ -93,6 +93,8 @@ serializeDocument(cells);   // the same text
 - `nameCells` gives every cell with a marker a unique random name (`bak7`);
   `nameConflicts` finds names shared by hand-edited cells.
 - `cellComments` extracts the cell comments, `<!--[ ... ]-->`.
+- `splitRendering` cuts the rendering of a whole document into the outputs
+  of its cells, at the cells' marker lines.
 
 The module is pure: no DOM, no Texl. It can run anywhere, e.g. on a server.
 → [Document functions](api.md#document-functions)
@@ -160,19 +162,30 @@ states, which is cheap because cell arrays are never mutated. Setting
 ```js
 // TexlEditor._renderCells()
 const generation = ++this._generation;
-this._engine ??= await createEngine(null, this.baseUrl);
-const context = this._engine.createContext();
-const outputs = [];
-for (const cell of this._cells) outputs.push(await context.render(cell.texl));
-context.free();
+const cells = this._cells;
+this._engine ??= createEngine();
+const engine = await this._engine;
+let outputs = [];
+try {
+    const doc = await engine.render(this.url, serializeDocument(cells));
+    outputs = splitRendering(doc.rendering, cells);
+} catch {
+    // The URL cannot be resolved: the cells show no output
+}
 if (generation === this._generation) this._outputs = outputs;
 ```
 
-- One engine per editor, created on the first pass (so `baseUrl` is read
-  then). It caches imported documents.
-- One **context** per pass: cells render in order into the same scope, so a
-  cell sees the names bound above it. Since markers render to themselves and
-  contain no tags, this gives the same result as rendering the whole file.
+- One engine per editor, created on the first pass and freed when the
+  editor leaves the page. It holds configuration only: every pass starts
+  from a new scope and fetches the imports again, so `url` may change at
+  any time (the editor renders again) and a changed library shows on the
+  next pass.
+- One **rendering** per pass, of the whole document as the document at
+  `url`: what any other Texl host renders, imports included, with each cell
+  seeing the names bound above it. `splitRendering` (`document.js`) cuts it
+  into the cells' outputs at their own marker lines, in order; the rules
+  (foreign markers, missing markers, line breaks) are in
+  [design.md](design.md#rendering).
 - Passes are asynchronous (imports are promises). A generation counter
   discards a pass that a newer change overtook.
 - The whole document renders on every change. Incremental rendering is an
@@ -307,8 +320,9 @@ cellTypes();               // ["text", "markdown", "quantity"]
 
 A thin wrapper around `@onlabsorg/texl`. The WebAssembly module is
 initialised once per page, on the first `createEngine()` call, and every
-call returns a new `TexlEngine`. Engines evaluate Swan, resolve and cache
-`texl.import`s, and create the contexts the editor renders into.
+call returns a new `TexlEngine`. An engine holds configuration only
+(globals, base URL); each `engine.render(url, source)` evaluates a whole
+document in a new scope and resolves its `texl.import`s against `url`.
 
 → [Engine](api.md#engine), [Texl primer](texl-primer.md)
 

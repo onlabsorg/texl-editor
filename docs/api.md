@@ -12,7 +12,7 @@ API is young and will change before 1.0.*
 - [Cell registry](#cell-registry) — `registerCell`, `cellTagName`,
   `cellClass`, `cellTypes`
 - [Document functions](#document-functions) — parse, serialise, names,
-  comments
+  comments, split a rendering
 - [Engine](#engine) — `createEngine`
 - [Swan helpers](#swan-helpers) — CodeMirror extensions and commands
 - [Styling](#styling) — CSS custom properties and parts
@@ -48,7 +48,7 @@ WebAssembly file. With Vite, exclude Texl from dependency pre-bundling (see
 Class: `TexlEditor` (extends `LitElement`). Tag: `texl-editor`.
 
 ```html
-<texl-editor base-url="https://example.com/docs/" rows="50"></texl-editor>
+<texl-editor url="https://example.com/docs/report.texl" rows="50"></texl-editor>
 ```
 
 The editor shows a document as a sheet of lined paper: one cell per line,
@@ -60,7 +60,7 @@ count). It owns the document: set it with `value`, read it back from `value`.
 | Property  | Attribute  | Type             | Default | Description |
 |-----------|------------|------------------|---------|-------------|
 | `value`   | —          | `string`         | `""`    | The document text. Setting it parses the document, names unnamed cells, resets selection and undo history, and starts a rendering pass. Reading it serialises the current cells. |
-| `baseUrl` | `base-url` | `string \| null` | `null`  | The absolute URL that relative `texl.import` URIs resolve against; `null` means the page URL. Read once, when the engine is created on the first render: set it **before** the first `value`. |
+| `url`     | `url`      | `string`         | `"untitled.texl"` | The URL of the document, resolved against the page URL. The document renders as the document at this URL: relative `texl.import` URIs resolve against its folder. It may change at any time: the editor renders again. The default puts an unsaved document in the page's folder. |
 | `rows`    | `rows`     | `number`         | `100`   | Lines on the sheet. The sheet shows more if the document has more cells. |
 | `rendered`| —          | `Promise<void>`  | resolved | The current rendering pass. Await it after setting `value` (or after a change) to read the rendered outputs. Read-only by convention. |
 
@@ -96,14 +96,18 @@ editor.addEventListener("name-conflict", (e) => {
 ### Rendering
 
 After `value` is set and after every change, the editor renders the whole
-document: it creates one Texl context and renders every cell's source into
-it, in order, so each cell sees the names bound by the cells above it. Only
-the latest pass updates the cells; `rendered` is its promise. Errors in a
-cell never stop rendering: they show as `[[Undefined]]`.
+document as the document at `url`, exactly as any other Texl host renders
+it, and splits the rendering into the cells' outputs at their marker lines
+(see [`splitRendering`](#splitrenderingrendering-cells--string)). Each cell
+sees the names bound by the cells above it. Only the latest pass updates the
+cells; `rendered` is its promise, and it never rejects: if `url` cannot be
+resolved, the cells show no output. Errors in a cell never stop rendering:
+they show as `[[Undefined]]`.
 
-The editor creates its Texl engine once, on the first render, with no
-globals and with `baseUrl`. Imported documents are cached by the engine for
-the editor's lifetime.
+The editor creates its Texl engine on the first render, with no globals,
+and frees it when it leaves the page. The engine caches nothing: every pass
+fetches and renders the imported documents again (the browser's HTTP cache
+still applies), so a changed imported document shows on the next pass.
 
 ## `TexlCell`
 
@@ -313,27 +317,45 @@ for (const [i, cell] of parseDocument(source).entries())
         console.log(`line ${i + 1}: ${comment}`);
 ```
 
+### `splitRendering(rendering, cells) → string[]`
+
+Splits the rendering of a whole document, `serializeDocument(cells)`, into
+the outputs of its cells, at the cells' own marker lines, which rendering
+leaves as they are. Marker *i* is searched after marker *i − 1*, at the
+start of a line, so other marker lines (e.g. in the rendering of an
+imported document) are content. The leading cell without marker gets the
+text before the first marker. If a marker is missing (a tag that spans
+cells swallowed it), the text goes to the last cell whose marker was found
+and the cell gets `""`. The line break that `serializeDocument` adds to a
+cell is not part of its output.
+
+```js
+const doc = await engine.render("report.texl", serializeDocument(cells));
+const outputs = splitRendering(doc.rendering, cells);
+```
+
 ## Engine
 
 ### `createEngine(globals?, baseUrl?) → Promise<TexlEngine>`
 
 From `src/engine.js`. Loads the Texl WebAssembly module on first use and
 returns a new `TexlEngine` from `@onlabsorg/texl`. `globals` is an object of
-names visible to every template; `baseUrl` is the absolute URL relative
-imports resolve against (default: the page URL). Use it to render documents
-outside the editor with the same module the editor loaded:
+names visible to every template; `baseUrl` is the absolute URL that
+relative document URLs resolve against (default: the page URL). The engine
+holds configuration only: each rendering starts from a new scope and fetches
+its imports again. Use it to render documents outside the editor with the
+same module the editor loaded:
 
 ```js
-import { createEngine, parseDocument } from "@onlabsorg/texl-editor";
+import { createEngine, parseDocument, splitRendering } from "@onlabsorg/texl-editor";
 
 const engine = await createEngine();
-const context = engine.createContext();
-for (const cell of parseDocument(source)) console.log(await context.render(cell.texl));
-context.free();
+const doc = await engine.render("docs/report.texl", source);   // imports resolve in docs/
+const outputs = splitRendering(doc.rendering, parseDocument(source));
 ```
 
 See the [Texl primer](texl-primer.md#the-javascript-api-onlabsorgtexl) for
-the engine and context API.
+the engine API.
 
 ## Swan helpers
 

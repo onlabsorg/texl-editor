@@ -136,16 +136,42 @@ line, an HTML comment that the editor recognises:
 
 ## Rendering
 
-After every committed edit the editor renders the whole document: it creates
-one Texl context and renders each cell's source into it, in order. Each cell
-gets its own output and the names of earlier cells are in scope. Rendering a
-cell by cell gives the same result as rendering the whole file, since the
-markers render to themselves and contain no tags.
+After every committed edit the editor renders the whole document, as the
+document at its URL (`url`), with one `engine.render(url, source)`: exactly
+what any other Texl host renders, imports included. Imports resolve against
+the document URL and are fetched again on every rendering, so a changed
+library shows on the next one. The names of earlier cells are in scope,
+since Texl evaluates the document top to bottom in one scope.
 
+The rendering is then split into the cells' outputs at the cells' marker
+lines, which render to themselves (HTML comments without tags):
+
+- Only the cells' own markers count, matched in order: marker *i* is
+  searched after marker *i − 1*, at the start of a line. Other marker lines
+  in the output are content, e.g. those of an imported editor document
+  rendered with `<% lib.rendering %>`. Known limitation: an imported
+  rendering with a marker of the *same name* as a later cell of the
+  document splits wrongly (random names make this rare).
+- The leading cell without marker gets the text before the first marker.
+- A missing marker (a tag that opens in one cell and closes in a later one
+  swallows the markers in between): the text up to the next marker found
+  goes to the last cell whose marker was found; cells whose marker is
+  missing show no output. **(open)** An error hint on those cells.
+- The line break that serialisation adds to a cell body without one is not
+  part of the cell's output.
+- If the URL cannot be resolved, the cells show no output.
 - Cell output is HTML, sanitised with DOMPurify (documents may come from
   other parties). `markdown` output is first turned into HTML with `marked`.
-- `context.names()` after each cell gives the names visible to the next one,
-  for autocompletion.
+- **(open)** Names for autocompletion. One rendering gives only `doc.data`,
+  the names at the end of the document, not the names visible to each cell.
+  Options: the names of `doc.data` filtered by the cell where they are first
+  bound; a separate context render of the cells above the edited one (no
+  imports there); a Texl API for the names at each tag.
+- **(open)** Links in rendered HTML (e.g. `[lib](lib.texl)`) resolve against
+  the page, not the document URL.
+- **(open)** Every rendering fetches and renders all imports again (the
+  browser HTTP cache absorbs repeated fetches). If it gets slow: debounce,
+  and later cache sources at loader level (a Texl feature).
 - **(open)** Incremental rendering (only the edited cell and those below), if
   full re-rendering gets slow.
 
@@ -185,7 +211,8 @@ this section keeps the outline.
   marker to a custom element (`texl-cell-<type>`). This is the extension
   point for developers' own cells.
 - `<texl-editor>` (`src/texl-editor.js`): parses the file into cells
-  (`src/document.js`), renders them in one context, handles navigation and
+  (`src/document.js`), renders the document and splits the
+  rendering into cell outputs, handles navigation and
   edit mode, and serialises the cells back. It is a web component itself, so
   it can be embedded in other apps and later in the OnLabs platform.
 - The editor owns the document; cells are stateless views of their source.
@@ -244,7 +271,7 @@ this section keeps the outline.
   the editor provides to documents, and how they stay available when the file
   is rendered without the editor (e.g. a Texl library imported by URL).
 - **(open)** The cells use CodeMirror 6, with Swan highlighting. Still to
-  do: autocompletion from `context.names()`, and a look that suits
+  do: autocompletion (see Rendering), and a look that suits
   non-programmers.
 - **(open)** Ctrl+Space inserts a `<%  %>` tag, but it is also the usual
   autocompletion key (CodeMirror, VS Code) and switches the input source on

@@ -164,3 +164,58 @@ export function serializeDocument(cells) {
         })
         .join("");
 }
+
+/**
+ * The position of a marker line in a rendering, searching from `from`: the
+ * marker at the start of a line and alone on it. Returns the start of the
+ * line and the end of the line with its line break, or null.
+ * @param {string} rendering
+ * @param {string} marker
+ * @param {number} from
+ * @returns {{start: number, end: number} | null}
+ */
+function findMarkerLine(rendering, marker, from) {
+    for (let start = rendering.indexOf(marker, from); start >= 0; start = rendering.indexOf(marker, start + 1)) {
+        if (start > 0 && rendering[start - 1] !== "\n") continue;
+        const rest = /^[ \t]*(\r?\n|$)/.exec(rendering.slice(start + marker.length));
+        if (rest) return { start, end: start + marker.length + rest[0].length };
+    }
+    return null;
+}
+
+/**
+ * Splits the rendering of a whole document (`serializeDocument(cells)`)
+ * into the outputs of its cells, at the cells' own marker lines, which
+ * rendering leaves as they are.
+ *
+ * Only the expected markers count, in order: marker i is searched after
+ * marker i - 1, so other marker lines in the rendering (e.g. of an imported
+ * document) are content. A marker can go missing when a tag opens in one
+ * cell and closes in a later one: the text up to the next marker found then
+ * goes to the last cell whose marker was found, and the cells whose marker
+ * is missing get an empty output. The line break that `serializeDocument`
+ * adds to a cell is not part of its output.
+ * @param {string} rendering
+ * @param {CellData[]} cells
+ * @returns {string[]}
+ */
+export function splitRendering(rendering, cells) {
+    const outputs = cells.map(() => "");
+    // The cell that gets the text from `pos` on; text before the first marker has none unless the first cell has no marker
+    let owner = cells[0]?.marker === false ? 0 : -1;
+    let pos = 0;
+    cells.forEach((cell, i) => {
+        if (cell.marker === false) return;
+        const line = findMarkerLine(rendering, formatMarker(cell), pos);
+        if (!line) return;
+        if (owner >= 0) outputs[owner] += rendering.slice(pos, line.start);
+        owner = i;
+        pos = line.end;
+    });
+    if (owner >= 0) outputs[owner] += rendering.slice(pos);
+    return outputs.map((output, i) => {
+        const texl = cells[i].texl;
+        const added = texl && i < cells.length - 1 && !texl.endsWith("\n");
+        return added && output.endsWith("\n") ? output.slice(0, -1) : output;
+    });
+}

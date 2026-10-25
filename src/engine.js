@@ -6,8 +6,11 @@ let ready = null;
 
 /**
  * Returns a new Texl engine, loading the WebAssembly module on first use.
- * @param {object} [globals] - Names visible to every cell.
- * @param {string} [baseUrl] - URL that relative imports resolve against.
+ * The engine holds configuration only: every `render` and `load` starts
+ * from a new scope and fetches its imports again.
+ * @param {object} [globals] - Names visible to every document.
+ * @param {string} [baseUrl] - URL that relative document URLs resolve
+ *   against; the page URL by default.
  * @returns {Promise<TexlEngine>}
  */
 export async function createEngine(globals = null, baseUrl = null) {
