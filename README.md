@@ -1,5 +1,12 @@
 # texl-editor
 
+> **Deprecated (2026-10-26).** texl-editor is no longer developed here and
+> this repository is archived. The editor lives on in
+> **[Stilo](https://github.com/onlabsorg/stilo)**, the open-source editor for
+> Texl documents (web app, server and command line), in `web/src/editor/`;
+> its documentation is in `docs/editor/`. The npm package
+> `@onlabsorg/texl-editor` (last version 0.1.1) will get no further releases.
+
 A web editor for [Texl](https://github.com/onlabsorg/texl) documents, made for
 people who work in Word and Excel.
 
